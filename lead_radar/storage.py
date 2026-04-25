@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+from pathlib import Path
+
+from lead_radar.models import LeadSignal, RawPost, ScanResult
+
+
+class SQLiteStore:
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.path)
+
+    def _init_schema(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS scan_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topic_name TEXT NOT NULL,
+                    scanned_at TEXT NOT NULL,
+                    total_posts INTEGER NOT NULL,
+                    candidate_count INTEGER NOT NULL,
+                    report_path TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS posts (
+                    source TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    body TEXT,
+                    author TEXT,
+                    community TEXT,
+                    created_at TEXT NOT NULL,
+                    upvotes INTEGER NOT NULL,
+                    num_comments INTEGER NOT NULL,
+                    raw_json TEXT,
+                    PRIMARY KEY (source, source_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS signals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER NOT NULL,
+                    source TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    score REAL NOT NULL,
+                    buying_intent TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    pain_summary TEXT NOT NULL,
+                    recommended_action TEXT NOT NULL,
+                    tags_json TEXT NOT NULL,
+                    FOREIGN KEY (run_id) REFERENCES scan_runs(id)
+                )
+                """
+            )
+
+    def save_scan_result(self, result: ScanResult) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO scan_runs (topic_name, scanned_at, total_posts, candidate_count, report_path)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    result.topic_name,
+                    result.scanned_at.isoformat(),
+                    result.total_posts,
+                    result.candidate_count,
+                    result.report_path,
+                ),
+            )
+            run_id = int(cursor.lastrowid)
+
+            for signal in result.signals:
+                self._upsert_post(conn, signal.post)
+                self._insert_signal(conn, run_id, signal)
+
+            return run_id
+
+    def _upsert_post(self, conn: sqlite3.Connection, post: RawPost) -> None:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO posts (
+                source, source_id, url, title, body, author, community,
+                created_at, upvotes, num_comments, raw_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                post.source,
+                post.source_id,
+                post.url,
+                post.title,
+                post.body,
+                post.author,
+                post.community,
+                post.created_at.isoformat(),
+                post.upvotes,
+                post.num_comments,
+                json.dumps(post.raw, ensure_ascii=False),
+            ),
+        )
+
+    def _insert_signal(self, conn: sqlite3.Connection, run_id: int, signal: LeadSignal) -> None:
+        conn.execute(
+            """
+            INSERT INTO signals (
+                run_id, source, source_id, score, buying_intent, confidence,
+                evidence_json, pain_summary, recommended_action, tags_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                signal.post.source,
+                signal.post.source_id,
+                signal.score,
+                signal.buying_intent,
+                signal.confidence,
+                json.dumps(signal.evidence, ensure_ascii=False),
+                signal.pain_summary,
+                signal.recommended_action,
+                json.dumps(signal.tags, ensure_ascii=False),
+            ),
+        )

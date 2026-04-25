@@ -1,0 +1,48 @@
+topics:
+  - name: n8n_paid_workflow_demand
+    description: 找想付费做 n8n / Zapier / Make / 业务自动化工作流的人
+    sources:
+      reddit:
+        subreddits:
+          - n8n
+          - automation
+          - smallbusiness
+          - entrepreneur
+          - SaaS
+          - Zapier
+          - NoCode
+          - selfhosted
+    keywords:
+      - "need automation"
+      - "automate my workflow"
+      - "looking for n8n help"
+      - "Zapier alternative"
+      - "manual work"
+      - "hire someone"
+      - "workflow consultant"
+      - "business process automation"
+      - "client onboarding automation"
+    include_phrases:
+      - "looking for help"
+      - "can someone build"
+      - "willing to pay"
+      - "paid help"
+      - "hire"
+      - "freelancer"
+      - "consultant"
+      - "too much manual work"
+      - "manual process"
+      - "automate this"
+      - "need someone"
+    exclude_phrases:
+      - "i am selling"
+      - "course"
+      - "affiliate"
+      - "job posting"
+      - "hiring for full-time"
+      - "giveaway"
+    lookback_hours: 72
+    max_posts_per_source: 30
+    min_comments: 0
+    min_upvotes: 0
+    output_top_n: 10
