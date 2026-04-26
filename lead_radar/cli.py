@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from lead_radar.config import load_config
-from lead_radar.llm import LLMReranker
+from lead_radar.llm import LLMReportGenerator, LLMReranker
 from lead_radar.models import RawPost, ScanResult
 from lead_radar.notifier import NotificationPayload, resolve_notify_channels, send_notifications
 from lead_radar.reddit import RedditClient
@@ -34,6 +34,7 @@ def run(
     send_feishu: Annotated[bool, typer.Option("--send-feishu")] = False,
     send_telegram: Annotated[bool, typer.Option("--send-telegram")] = False,
     llm_rerank: Annotated[bool, typer.Option("--llm-rerank")] = False,
+    llm_report: Annotated[bool, typer.Option("--llm-report")] = False,
     llm_candidate_limit: Annotated[int, typer.Option("--llm-candidate-limit")] = 20,
 ) -> None:
     """Run one scan and generate a Markdown report."""
@@ -64,7 +65,11 @@ def run(
         signals=signals,
     )
 
-    markdown = build_markdown_report(result, topic_config)
+    if llm_report:
+        markdown = LLMReportGenerator().generate(result.signals)
+        console.print("[green]LLM generated strategic report[/green]")
+    else:
+        markdown = build_markdown_report(result, topic_config)
     report_path = write_report(markdown, output_dir=output_dir, topic_name=topic_config.name)
     result.report_path = str(report_path)
 

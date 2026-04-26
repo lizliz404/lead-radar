@@ -243,6 +243,12 @@ lead-radar run --config config.yaml --topic paid_demand_signals --mock --llm-rer
 
 这一步只处理规则筛出的候选集，不把全量帖子直接丢给 LLM。
 
+如果需要让大模型按战略摘要 prompt 生成最终 Markdown 报告，增加：
+
+```bash
+lead-radar run --config config.yaml --topic paid_demand_signals --mock --llm-report
+```
+
 ### 6.7 GitHub Actions 定时运行
 
 项目内置 `.github/workflows/lead-radar.yml`，支持手动运行和每日定时运行。需要在 GitHub repository secrets 配置：
