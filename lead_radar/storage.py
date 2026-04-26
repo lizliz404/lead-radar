@@ -26,10 +26,26 @@ class SQLiteStore:
                     scanned_at TEXT NOT NULL,
                     total_posts INTEGER NOT NULL,
                     candidate_count INTEGER NOT NULL,
-                    report_path TEXT
+                    report_path TEXT,
+                    notification_status TEXT NOT NULL DEFAULT 'not_requested',
+                    notification_channels TEXT NOT NULL DEFAULT '[]',
+                    notification_error TEXT
                 )
                 """
             )
+            self._ensure_column(
+                conn,
+                "scan_runs",
+                "notification_status",
+                "TEXT NOT NULL DEFAULT 'not_requested'",
+            )
+            self._ensure_column(
+                conn,
+                "scan_runs",
+                "notification_channels",
+                "TEXT NOT NULL DEFAULT '[]'",
+            )
+            self._ensure_column(conn, "scan_runs", "notification_error", "TEXT")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS posts (
@@ -89,6 +105,37 @@ class SQLiteStore:
                 self._insert_signal(conn, run_id, signal)
 
             return run_id
+
+    def update_notification_status(
+        self,
+        run_id: int,
+        *,
+        status: str,
+        channels: list[str],
+        error: str | None = None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE scan_runs
+                SET notification_status = ?,
+                    notification_channels = ?,
+                    notification_error = ?
+                WHERE id = ?
+                """,
+                (status, json.dumps(channels, ensure_ascii=False), error, run_id),
+            )
+
+    def _ensure_column(
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+        column_type: str,
+    ) -> None:
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")}
+        if column_name not in columns:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
 
     def _upsert_post(self, conn: sqlite3.Connection, post: RawPost) -> None:
         conn.execute(

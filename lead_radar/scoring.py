@@ -48,7 +48,6 @@ HELP_PHRASES = [
 ]
 
 HIGH_RELEVANCE_COMMUNITIES = {
-    "n8n",
     "automation",
     "zapier",
     "nocode",
@@ -58,7 +57,7 @@ HIGH_RELEVANCE_COMMUNITIES = {
 }
 
 
-def score_posts(posts: list[RawPost], topic: TopicConfig) -> list[LeadSignal]:
+def score_posts(posts: list[RawPost], topic: TopicConfig, limit: int | None = None) -> list[LeadSignal]:
     signals: list[LeadSignal] = []
     for post in posts:
         if post.num_comments < topic.min_comments or post.upvotes < topic.min_upvotes:
@@ -69,7 +68,7 @@ def score_posts(posts: list[RawPost], topic: TopicConfig) -> list[LeadSignal]:
         signals.append(signal)
 
     signals.sort(key=lambda item: item.score, reverse=True)
-    return signals[: topic.output_top_n]
+    return signals[: (limit or topic.output_top_n)]
 
 
 def score_post(post: RawPost, topic: TopicConfig) -> LeadSignal:

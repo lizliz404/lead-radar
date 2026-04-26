@@ -1,0 +1,73 @@
+name: Lead Radar
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Topic name from config.example.yaml
+        required: false
+        default: paid_demand_signals
+      notify:
+        description: Notification channel, such as telegram, feishu, or none
+        required: false
+        default: telegram
+      llm_rerank:
+        description: Enable LLM rerank
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+      REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+      REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+      REDDIT_ACCESS_TOKEN: ${{ secrets.REDDIT_ACCESS_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+      LEAD_RADAR_LLM_API_KEY: ${{ secrets.LEAD_RADAR_LLM_API_KEY }}
+      LEAD_RADAR_LLM_BASE_URL: ${{ secrets.LEAD_RADAR_LLM_BASE_URL }}
+      LEAD_RADAR_LLM_MODEL: ${{ secrets.LEAD_RADAR_LLM_MODEL }}
+      LEAD_RADAR_DB_PATH: data/lead_radar.sqlite
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run Lead Radar
+        shell: bash
+        run: |
+          topic="${{ github.event.inputs.topic || 'paid_demand_signals' }}"
+          notify="${{ github.event.inputs.notify || 'telegram' }}"
+          llm_rerank="${{ github.event.inputs.llm_rerank || 'false' }}"
+
+          args=(run --config config.example.yaml --topic "$topic")
+          if [ "$notify" != "none" ]; then
+            args+=(--notify "$notify")
+          fi
+          if [ "$llm_rerank" = "true" ]; then
+            args+=(--llm-rerank)
+          fi
+
+          lead-radar "${args[@]}"
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lead-radar-output
+          path: |
+            reports/
+            data/lead_radar.sqlite
+          if-no-files-found: ignore

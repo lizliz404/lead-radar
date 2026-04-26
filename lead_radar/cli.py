@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from lead_radar.config import load_config
-from lead_radar.feishu import FeishuWebhookClient
+from lead_radar.llm import LLMReranker
 from lead_radar.models import RawPost, ScanResult
+from lead_radar.notifier import NotificationPayload, resolve_notify_channels, send_notifications
 from lead_radar.reddit import RedditClient
 from lead_radar.report import build_markdown_report, write_report
 from lead_radar.scoring import score_posts
@@ -25,11 +26,15 @@ console = Console()
 @app.command()
 def run(
     config: Annotated[str, typer.Option("--config", "-c")] = "config.yaml",
-    topic: Annotated[str, typer.Option("--topic", "-t")] = "n8n_paid_workflow_demand",
+    topic: Annotated[str, typer.Option("--topic", "-t")] = "paid_demand_signals",
     mock: Annotated[bool, typer.Option("--mock", help="Use examples/sample_posts.json")] = False,
     output_dir: Annotated[str, typer.Option("--output-dir", "-o")] = "reports",
     db_path: Annotated[str | None, typer.Option("--db-path")] = None,
+    notify: Annotated[str | None, typer.Option("--notify")] = None,
     send_feishu: Annotated[bool, typer.Option("--send-feishu")] = False,
+    send_telegram: Annotated[bool, typer.Option("--send-telegram")] = False,
+    llm_rerank: Annotated[bool, typer.Option("--llm-rerank")] = False,
+    llm_candidate_limit: Annotated[int, typer.Option("--llm-candidate-limit")] = 20,
 ) -> None:
     """Run one scan and generate a Markdown report."""
 
@@ -45,7 +50,12 @@ def run(
         posts = reddit.search_topic(topic_config)
         console.print(f"[green]Fetched {len(posts)} Reddit posts[/green]")
 
-    signals = score_posts(posts, topic_config)
+    rule_limit = llm_candidate_limit if llm_rerank else None
+    signals = score_posts(posts, topic_config, limit=rule_limit)
+    if llm_rerank:
+        signals = LLMReranker().rerank(signals, topic_config)
+        console.print(f"[green]LLM reranked signals:[/green] {len(signals)}")
+
     result = ScanResult(
         topic_name=topic_config.name,
         scanned_at=datetime.now(timezone.utc),
@@ -66,10 +76,26 @@ def run(
     console.print(f"[bold green]SQLite run id:[/bold green] {run_id}")
     console.print(f"[bold green]Signals:[/bold green] {len(signals)}")
 
-    if send_feishu:
-        summary = make_feishu_summary(result, report_path)
-        FeishuWebhookClient().send_text(summary)
-        console.print("[bold green]Feishu notification sent[/bold green]")
+    notify_channels = resolve_notify_channels(
+        notify,
+        send_feishu=send_feishu,
+        send_telegram=send_telegram,
+    )
+    if notify_channels:
+        summary = make_notification_summary(result, report_path)
+        payload = NotificationPayload(markdown=markdown, summary=summary, report_path=report_path)
+        try:
+            send_notifications(notify_channels, payload)
+        except Exception as exc:
+            store.update_notification_status(
+                run_id,
+                status="failed",
+                channels=notify_channels,
+                error=str(exc),
+            )
+            raise
+        store.update_notification_status(run_id, status="sent", channels=notify_channels)
+        console.print(f"[bold green]Notifications sent:[/bold green] {', '.join(notify_channels)}")
 
 
 def load_mock_posts(path: str | Path = "examples/sample_posts.json") -> list[RawPost]:
@@ -77,7 +103,7 @@ def load_mock_posts(path: str | Path = "examples/sample_posts.json") -> list[Raw
     return [RawPost.model_validate(item) for item in payload]
 
 
-def make_feishu_summary(result: ScanResult, report_path: Path) -> str:
+def make_notification_summary(result: ScanResult, report_path: Path) -> str:
     strong = sum(1 for item in result.signals if item.buying_intent == "strong")
     lines = [
         f"Lead Radar: {result.topic_name}",

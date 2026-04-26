@@ -21,9 +21,11 @@ lead_radar/
   models.py       数据模型
   reddit.py       Reddit 数据源适配器
   scoring.py      规则过滤与评分
+  llm.py          LLM 候选集二次筛选
   report.py       Markdown 报告生成
   storage.py      SQLite 存储
   feishu.py       飞书 webhook 推送
+  telegram.py     Telegram bot 推送
 ```
 
 ### 2.1 Config
@@ -73,9 +75,9 @@ lead_radar/
 
 职责：
 
-- 将报告摘要推送到飞书；
-- MVP 先发文本；
-- V1 可升级为交互式卡片。
+- 将报告摘要推送到 Telegram / 飞书等渠道；
+- MVP 中 Telegram 发送完整 Markdown，飞书发送摘要和报告路径；
+- V1 可升级为交互式卡片或通用 webhook。
 
 ---
 
@@ -89,7 +91,7 @@ lead_radar/
 5. Scorer 过滤、打分、排序
 6. Report Builder 生成 Markdown
 7. Storage 写入 SQLite
-8. Notifier 可选推送飞书
+8. Notifier 可选推送 Telegram / 飞书
 ```
 
 ---
@@ -113,6 +115,8 @@ LLM 的价值在于语义总结，不在于替代所有过滤。
 ```
 
 LLM 后续只处理 Top 10/20，而不是处理几百条噪音。
+
+当前实现预留 OpenAI-compatible API 入口，可通过 `--llm-rerank` 让 LLM 在规则候选集上做第二轮筛选和排序。默认关闭，避免没有 API key 时影响本地 MVP。
 
 ---
 
@@ -192,10 +196,10 @@ class SourceClient:
 
 Notifier 可以扩展为：
 
+- Telegram
 - Feishu
 - Slack
 - Email
-- Telegram
 - Notion
 - Airtable
 
@@ -208,7 +212,7 @@ Notifier 可以扩展为：
 适合 MVP 验证。
 
 ```bash
-lead-radar run --config config.yaml --topic n8n_paid_workflow_demand
+lead-radar run --config config.yaml --topic paid_demand_signals
 ```
 
 ### 7.2 GitHub Actions Cron
@@ -226,7 +230,7 @@ on:
 适合长期稳定运行。
 
 ```bash
-0 8 * * * cd /app/lead-radar && lead-radar run --config config.yaml --topic n8n_paid_workflow_demand --send-feishu
+0 8 * * * cd /app/lead-radar && lead-radar run --config config.yaml --topic paid_demand_signals --notify telegram
 ```
 
 ---
@@ -250,7 +254,7 @@ on:
 SQLite → Postgres / Supabase
 CLI → API Service
 Markdown → Dashboard
-Text webhook → Interactive cards
+Text webhook → Telegram / Feishu / Generic webhook
 Rule scoring → Rule + LLM + feedback learning
 Single topic → Multi-topic workspace
 ```

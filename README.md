@@ -1,18 +1,18 @@
 # Lead Radar
 
-> 一个代码优先的“社媒需求信号雷达”：自动从 Reddit 等公开社区抓取帖子，筛出高意图需求信号，生成可行动的线索报告，并推送到飞书。
+> 一个代码优先的“社媒需求信号雷达”：自动从 Reddit 等公开社区抓取帖子，筛出高意图需求信号，生成可行动的 Markdown 线索报告，并按需推送通知。
 
-Lead Radar 不是泛泛的“社媒洞察 Agent”，也不是为了炫技而搭的 n8n 工作流。它的第一性目标很窄：**每天/每次帮你找出一批可能愿意为某类产品、服务或自动化方案付费的真实用户需求信号。**
+Lead Radar 不是泛泛的“社媒洞察 Agent”。它的第一性目标很窄：**每天/每次帮你找出一批可能愿意为某类产品、服务或自动化方案付费的真实用户需求信号。**
 
 本项目的 MVP 先聚焦一个场景：
 
-> 找出英文社区里最近是否有人在表达“我想付费/找人/外包/求助，帮我做 n8n 或业务自动化工作流”的需求。
+> 找出英文社区里最近是否有人在表达“我想付费/找人/外包/求助，帮我做业务自动化工作流”的需求。
 
 ---
 
 ## 1. 为什么做这个
 
-旧方案是“在飞书群里 @ 机器人 → 触发 n8n → 抓 Reddit → AI 分析 → 写入飞书表格 → 回传报告”。这个思路的需求是真实的，但 n8n 不是核心。
+这个项目最初从一个 n8n 自动化设想里长出来，但复盘后发现，真正重要的不是编排工具，而是稳定发现真实需求信号。
 
 真正的需求是：
 
@@ -20,7 +20,7 @@ Lead Radar 不是泛泛的“社媒洞察 Agent”，也不是为了炫技而搭
 - 想快速知道某个主题下有没有真实痛点、付费信号、外包意图、竞品抱怨、内容选题。
 - 想让输出结果能直接指导下一步行动，而不是生成一份漂亮但无用的总结。
 
-所以本项目把 n8n 从“核心实现方式”降级为“可选编排层”，优先使用更直接、可测试、可版本化的代码实现。
+所以本项目优先使用更直接、可测试、可版本化的代码实现。
 
 ---
 
@@ -63,14 +63,14 @@ tests/                     评分逻辑测试
 代码骨架已经按 MVP 的核心链路搭好：
 
 ```text
-配置主题 → 抓取帖子/读取 mock → 规则过滤与打分 → 生成 Markdown 报告 → 可选推送飞书 → 可选写入 SQLite
+配置主题 → 抓取帖子/读取 mock → 规则过滤与打分 → 生成 Markdown 报告 → 可选通知 → 可选写入 SQLite
 ```
 
 LLM 分析模块预留为后续扩展点。MVP 先用规则打分和确定性报告跑通核心闭环，避免一开始就把成本和不确定性放进系统。
 
 ---
 
-## 4. 为什么选择 Python，而不是 n8n / TypeScript / LangChain
+## 4. 为什么选择 Python
 
 ### 4.1 Python
 
@@ -79,7 +79,7 @@ LLM 分析模块预留为后续扩展点。MVP 先用规则打分和确定性报
 - 抓取、清洗、打分、SQLite、命令行、定时任务都非常直接。
 - 适合后续加上 LLM、向量检索、数据分析、Notebook 复盘。
 - 可以用 GitHub Actions、VPS Cron、Docker、Cloudflare Container 等方式部署。
-- 比 n8n 更容易测试、版本化、复用和长期维护。
+- 比低代码编排更容易测试、版本化、复用和长期维护。
 
 ### 4.2 暂不使用 LangChain / Agent 框架
 
@@ -91,19 +91,6 @@ MVP 里 LLM 只需要做两件事：
 2. 汇总为一份可行动报告。
 
 这不需要复杂 Agent。
-
-### 4.3 n8n 的位置
-
-n8n 可以作为后续可选层：
-
-- 给非技术同事做可视化编排；
-- 做一次性 demo；
-- 做飞书、表格、通知的低代码连接器；
-- 承担“把 CLI 包起来”的 UI 层。
-
-但它不是 MVP 的必要条件。
-
----
 
 ## 5. 架构
 
@@ -133,7 +120,7 @@ n8n 可以作为后续可选层：
                    │        │
                    ▼        ▼
           ┌────────────┐  ┌─────────────┐
-          │ SQLite     │  │ Feishu Bot  │
+          │ SQLite     │  │ Notifier    │
           │ history    │  │ notification│
           └────────────┘  └─────────────┘
 ```
@@ -170,7 +157,7 @@ cp config.example.yaml config.yaml
 ### 6.3 使用 mock 数据跑通 MVP
 
 ```bash
-lead-radar run --config config.yaml --topic n8n_paid_workflow_demand --mock
+lead-radar run --config config.yaml --topic paid_demand_signals --mock
 ```
 
 输出文件会生成在：
@@ -181,7 +168,7 @@ reports/
 
 ### 6.4 使用真实 Reddit 数据
 
-配置 `.env`：
+推荐配置 Reddit app 的 client id / secret，让程序自动换取短期 access token：
 
 ```bash
 REDDIT_CLIENT_ID=your_client_id
@@ -189,15 +176,40 @@ REDDIT_CLIENT_SECRET=your_client_secret
 REDDIT_USER_AGENT="lead-radar/0.1 by your_reddit_username"
 ```
 
+也可以临时传入已有 bearer token：
+
+```bash
+REDDIT_ACCESS_TOKEN=your_access_token
+```
+
+但 Reddit access token 会过期，长期运行更建议使用 `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET`。
+
 然后运行：
 
 ```bash
-lead-radar run --config config.yaml --topic n8n_paid_workflow_demand
+lead-radar run --config config.yaml --topic paid_demand_signals
 ```
 
-Reddit Data API 的免费访问有速率限制；本项目 MVP 默认低频运行，避免高频抓取。参考 Reddit 官方 Data API 文档：<https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki>。
+程序会通过 Reddit OAuth 获取 token，然后请求 `https://oauth.reddit.com` 的搜索接口。Reddit Data API 有速率限制；本项目 MVP 默认低频运行，避免高频抓取。参考 Reddit 官方 Data API 文档：<https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki>。
 
-### 6.5 推送到飞书群
+### 6.5 推送通知
+
+通知只是提醒你回来看 Markdown 报告，不承载完整复核体验。个人使用可以优先用 Telegram；团队场景可以用飞书。
+
+配置 Telegram：
+
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+运行：
+
+```bash
+lead-radar run --config config.yaml --topic paid_demand_signals --mock --notify telegram
+```
+
+配置飞书：
 
 配置 `.env`：
 
@@ -208,10 +220,51 @@ FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
 运行：
 
 ```bash
-lead-radar run --config config.yaml --topic n8n_paid_workflow_demand --mock --send-feishu
+lead-radar run --config config.yaml --topic paid_demand_signals --mock --notify feishu
 ```
 
-当前版本使用飞书自定义机器人 webhook 推送文本消息。后续可以升级为交互式卡片。
+当前版本里，Telegram 会直接发送完整 Markdown 报告；如果报告超过 Telegram 单条消息长度限制，会自动分段发送。飞书仍推送文本摘要和 Markdown 报告路径。后续可以升级为交互式卡片或通用 webhook。
+
+### 6.6 可选 LLM 二次筛选
+
+默认流程是规则评分，不调用大模型。如果需要在规则粗筛后让大模型做第二轮筛选和排序，配置 OpenAI-compatible API：
+
+```bash
+LEAD_RADAR_LLM_API_KEY=your_api_key
+LEAD_RADAR_LLM_BASE_URL=https://your-provider.example/v1
+LEAD_RADAR_LLM_MODEL=your_model
+```
+
+运行：
+
+```bash
+lead-radar run --config config.yaml --topic paid_demand_signals --mock --llm-rerank
+```
+
+这一步只处理规则筛出的候选集，不把全量帖子直接丢给 LLM。
+
+### 6.7 GitHub Actions 定时运行
+
+项目内置 `.github/workflows/lead-radar.yml`，支持手动运行和每日定时运行。需要在 GitHub repository secrets 配置：
+
+```text
+REDDIT_CLIENT_ID
+REDDIT_CLIENT_SECRET
+REDDIT_USER_AGENT
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+```
+
+如果使用飞书或 LLM，再补：
+
+```text
+FEISHU_WEBHOOK_URL
+LEAD_RADAR_LLM_API_KEY
+LEAD_RADAR_LLM_BASE_URL
+LEAD_RADAR_LLM_MODEL
+```
+
+默认 workflow 会运行 `paid_demand_signals` 并推送 Telegram。手动触发时可以把 `notify` 改成 `feishu` 或 `none`。
 
 ---
 
@@ -219,12 +272,11 @@ lead-radar run --config config.yaml --topic n8n_paid_workflow_demand --mock --se
 
 ```yaml
 topics:
-  - name: n8n_paid_workflow_demand
-    description: 找想付费做 n8n / 自动化工作流的人
+  - name: paid_demand_signals
+    description: 找公开社区里带有付费、外包、采购或强求助意图的需求信号
     sources:
       reddit:
         subreddits:
-          - n8n
           - automation
           - smallbusiness
           - entrepreneur
@@ -235,11 +287,13 @@ topics:
     keywords:
       - "need automation"
       - "automate my workflow"
-      - "looking for n8n help"
+      - "looking for help"
       - "Zapier alternative"
       - "manual work"
       - "hire someone"
       - "workflow consultant"
+      - "willing to pay"
+      - "paid help"
     include_phrases:
       - "looking for help"
       - "can someone build"
@@ -265,7 +319,7 @@ topics:
 ## 8. 报告输出示例
 
 ```markdown
-# Lead Radar Report: n8n_paid_workflow_demand
+# Lead Radar Report: paid_demand_signals
 
 ## 今日判断
 
@@ -273,9 +327,9 @@ topics:
 
 ## Top Leads
 
-### 1. Need help automating client onboarding with n8n
+### 1. Need help automating client onboarding
 
-- Source: r/n8n
+- Source: r/automation
 - Score: 18.5
 - Buying intent: strong
 - Pain: onboarding 手动步骤多，跨表格/邮件/CRM 重复录入。
@@ -312,7 +366,8 @@ MVP 阶段的验收标准：
 - [x] Markdown 报告
 - [x] SQLite 存储
 - [x] 飞书 webhook 推送
-- [ ] GitHub Actions 定时任务
+- [x] Telegram bot 推送
+- [x] GitHub Actions 定时任务
 - [ ] LLM 结构化分析 Top N 帖子
 
 ### V1：真正可用的个人工作流

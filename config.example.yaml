@@ -1,10 +1,9 @@
 topics:
-  - name: n8n_paid_workflow_demand
-    description: 找想付费做 n8n / Zapier / Make / 业务自动化工作流的人
+  - name: paid_demand_signals
+    description: 找公开社区里带有付费、外包、采购或强求助意图的需求信号
     sources:
       reddit:
         subreddits:
-          - n8n
           - automation
           - smallbusiness
           - entrepreneur
@@ -15,13 +14,15 @@ topics:
     keywords:
       - "need automation"
       - "automate my workflow"
-      - "looking for n8n help"
+      - "looking for help"
       - "Zapier alternative"
       - "manual work"
       - "hire someone"
       - "workflow consultant"
       - "business process automation"
       - "client onboarding automation"
+      - "willing to pay"
+      - "paid help"
     include_phrases:
       - "looking for help"
       - "can someone build"
