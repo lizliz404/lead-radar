@@ -1,464 +1,370 @@
-# PRD：Lead Radar 社媒需求信号雷达
+# PRD: Lead Radar Social Demand Signal Radar
 
-## 1. 产品一句话
+## 1. One-Line Product Definition
 
-Lead Radar 是一个代码优先的社媒需求信号雷达，用来从 Reddit 等公开社区中自动发现“可能有付费意图、外包意图、强痛点或产品机会”的帖子，并生成可行动的线索报告。
+Lead Radar is a code-first demand signal radar that scans public communities, finds posts with possible payment intent, outsourcing intent, strong pain, or product opportunity, and generates actionable lead reports.
 
----
+## 2. Background
 
-## 2. 背景
+The initial concept was an AI social insight agent that accepted a request, fetched Reddit data, cleaned and analyzed it, then sent a report back. After review, the core value is not the orchestration tool. The value is reliable source coverage, search strategy, signal scoring, and action-oriented output.
 
-最初的设想是搭建一个“AI 社媒洞察 Agent”：用户输入需求，系统自动抓取 Reddit 数据、清洗、分析，并把报告推送回来。
+## 3. Target Users
 
-复盘后判断：
+Primary user:
 
-- “社媒需求洞察”是真需求；
-- 具体编排工具不是需求，而是实现手段；
-- 真正关键的是数据源、检索策略、信号筛选、输出可行动性；
-- MVP 应该优先用代码实现一个稳定、可测试、可低成本运行的闭环。
+- independent automation service provider;
+- consultant or operator looking for paid workflow implementation opportunities;
+- solo builder looking for public demand signals.
 
----
+Secondary users:
 
-## 3. 目标用户
+- indie hackers looking for niche SaaS opportunities;
+- content creators looking for pains and case studies;
+- product managers monitoring complaints and unmet needs;
+- early sales operators looking for public leads.
 
-### 3.1 第一目标用户
+## 4. Core Problem
 
-**Liz 自己 / 独立服务提供者 / 自动化服务操盘者**
+Users do not lack AI summaries. They lack a reliable way to reduce noisy public community data into a small set of source-linked, actionable opportunities.
 
-典型需求：
+Current pain points:
 
-- 想知道英文社区里有没有人正在寻找 Zapier、Make、自动化、内部工具相关帮助；
-- 想找到潜在服务机会、内容选题、产品切口；
-- 不想每天手刷多个社区；
-- 愿意人工复核少量高质量线索。
+1. Too many community posts to review manually.
+2. Keyword searches miss real demand or return noisy results.
+3. Platform search lacks business-intent ranking.
+4. LLM web search is hard to control and verify.
+5. Generic summaries do not guide action.
+6. Without history, trends and repeated pains are hard to observe.
 
-### 3.2 次级用户
+## 5. Product Goals
 
-- Indie hacker：找小众需求和微型 SaaS 机会；
-- 内容创作者：找选题、痛点、案例；
-- 产品经理：监控竞品抱怨和用户反馈；
-- 早期销售：找公开社区里的潜在线索。
+MVP goal:
 
----
+> After each run, output a Top N demand report that lets the user complete a 1-2 hour community scan in 10-20 minutes.
 
-## 4. 核心问题
+V1 goal:
 
-用户当前的问题不是“没有 AI 总结”，而是：
+> Build a daily personal workflow with scheduled runs, notifications, history, deduplication, and human feedback.
 
-1. 社区信息太多，手动刷效率低；
-2. 搜索关键词不稳定，容易漏掉真实需求；
-3. 平台搜索结果缺乏业务语义筛选；
-4. LLM 直接联网搜索样本量和可控性不足；
-5. 泛泛总结无法指导行动；
-6. 没有持续积累历史信号，难以观察趋势。
+V2 goal:
 
----
+> Expand into a multi-source, multi-topic demand intelligence system with iterated scoring.
 
-## 5. 产品目标
+## 6. Non-Goals
 
-MVP 目标：
+The MVP will not:
 
-> 每次运行后，输出一份 Top 10 以内的高信号需求报告，让用户用 10-20 分钟完成原本 1-2 小时的社区扫描。
+- build broad full-web social monitoring;
+- build a complex web UI;
+- automate private messages or sales outreach;
+- retain unnecessary raw user content long term;
+- generate insights without source links;
+- depend on a low-code tool as core infrastructure;
+- introduce a complex agent framework at the start.
 
-V1 目标：
+## 7. MVP Scope
 
-> 形成每日自动运行、可替换通知、历史去重、人工反馈的个人工作流。
+### Data Sources
 
-V2 目标：
+- Reddit public posts.
+- Local mock data for credential-free development.
 
-> 扩展为多平台、多主题、可评分迭代的需求情报系统。
+Future sources may include RSS, Hacker News, Product Hunt, GitHub Issues, and compliant APIs for additional platforms.
 
----
+### Input
 
-## 6. 非目标
+Users define topics through YAML:
 
-MVP 阶段明确不做：
+- topic name;
+- topic description;
+- target subreddit list;
+- search keywords;
+- strong signal phrases;
+- exclusion phrases;
+- lookback window;
+- max posts per source;
+- output Top N.
 
-- 不做大而全的“全网社媒监听”；
-- 不做复杂 Web UI；
-- 不做自动私信、自动销售触达；
-- 不做长期囤积用户原始内容；
-- 不做没有来源链接的“玄学洞察”；
-- 不把任何低代码编排工具作为必要依赖；
-- 不一开始引入复杂 Agent 框架。
+### Output
 
----
+- Markdown report.
+- SQLite history.
+- Optional Telegram or Feishu notification.
 
-## 7. MVP 范围
+Each lead should include title, source, community, URL, score, buying intent, pain summary, evidence, recommended action, created time, upvotes, and comment count.
 
-### 7.1 数据源
+## 8. User Stories
 
-MVP 仅支持：
+### Story 1: Daily Scan for Automation Service Demand
 
-- Reddit 公开帖子；
-- 本地 mock 数据，用于无凭证调试。
+As an automation service provider, I want to scan high-relevance communities such as automation, smallbusiness, and Zapier so I can find people looking for consultants, implementation help, or alternatives.
 
-后续扩展：
+Acceptance criteria:
 
-- RSS；
-- Hacker News；
-- Product Hunt；
-- GitHub Issues；
-- X / 小红书 / 知乎等合规数据源。
+- target subreddits and keywords are configurable;
+- one scan can be run from the CLI;
+- Top N results are produced;
+- every result includes a source link and next action.
 
-### 7.2 输入
+### Story 2: Fast Report Review
 
-用户通过配置文件定义：
+As a user, I want a Markdown report or notification summary so I can quickly decide whether there are opportunities worth opening today.
 
-- 主题名称；
-- 主题描述；
-- 目标 subreddit 列表；
-- 检索关键词；
-- 强信号短语；
-- 排除短语；
-- 时间窗口；
-- 每个来源最大抓取数；
-- 输出 Top N。
+Acceptance criteria:
 
-### 7.3 输出
+- the report includes a high-level judgment;
+- Top Leads are sorted by priority;
+- every lead traces back to the original post;
+- the report avoids generic advice.
 
-MVP 输出：
+### Story 3: Low-Cost Debugging
 
-- Markdown 报告；
-- SQLite 历史记录；
-- 可选通知推送，优先支持 Telegram 和飞书。
+As a developer, I want mock mode to run without Reddit credentials so scoring, report generation, and notifications can be checked quickly.
 
-每条线索输出字段：
+Acceptance criteria:
 
-| 字段 | 说明 |
-|---|---|
-| title | 原帖标题 |
-| source | 来源平台 |
-| subreddit | 来源社区 |
-| url | 原帖链接 |
-| score | 规则评分 |
-| buying_intent | strong / medium / weak / none |
-| pain_summary | 痛点摘要 |
-| evidence | 命中的证据短语 |
-| recommended_action | 推荐行动 |
-| created_at | 发布时间 |
-| upvotes | 点赞数 |
-| num_comments | 评论数 |
+- `--mock` mode runs without external API keys;
+- sample data produces a report;
+- core logic can be exercised locally.
 
----
+## 9. Functional Requirements
 
-## 8. 核心用户故事
+### Configuration
 
-### Story 1：每日扫描自动化服务需求
+MVP:
 
-作为自动化服务提供者，
-我想每天自动扫描 automation / smallbusiness 等高相关社区，
-以便发现有人是否正在寻找自动化顾问、外包帮助或 Zapier 替代方案。
+- support YAML configuration;
+- support multiple topics;
+- support topic selection;
+- return readable errors for missing configuration.
 
-验收标准：
+Later:
 
-- 可以配置目标 subreddit 和关键词；
-- 可以运行一次扫描；
-- 输出 Top 10 结果；
-- 每条结果有原帖链接和推荐行动。
+- per-topic output directories;
+- per-topic notification config;
+- weighted keyword groups.
 
-### Story 2：快速复核报告
+### Data Collection
 
-作为使用者，
-我想在一份 Markdown 报告或通知摘要里看到结果，
-以便快速判断今天有没有值得点开的需求。
+MVP:
 
-验收标准：
+- support Reddit OAuth;
+- search by subreddit and keyword;
+- filter by `lookback_hours`;
+- limit by `max_posts_per_source`;
+- deduplicate posts.
 
-- 报告中有总览；
-- Top Leads 按优先级排序；
-- 每条线索可追溯到原帖；
-- 报告不输出泛泛建议。
+Later:
 
-### Story 3：低成本调试
+- read rate-limit headers;
+- retry fetch failures;
+- write fetch status to logs.
 
-作为开发者，
-我想不用 Reddit 凭证也能用 mock 数据跑通流程，
-以便快速验证评分、报告、推送逻辑。
+### Filtering and Scoring
 
-验收标准：
+MVP:
 
-- `--mock` 模式可运行；
-- 不需要外部 API key；
-- 能生成示例报告。
+- score include phrase hits;
+- penalize or remove exclude phrase hits;
+- score keyword hits in title and body;
+- include comments, upvotes, and freshness;
+- output Top N.
 
----
+Later:
 
-## 9. 功能需求
+- topic-specific weights;
+- human feedback adjustments;
+- already-reviewed deduplication.
 
-### 9.1 配置管理
+### Report Generation
 
-P0：
+MVP:
 
-- 支持 YAML 配置；
-- 支持多个 topic；
-- 支持指定 topic 运行；
-- 配置缺失时报可读错误。
+- generate Markdown reports;
+- summarize fetched count, candidate count, and Top N;
+- include evidence and recommended action for each lead.
 
-P1：
+Later:
 
-- 支持 per-topic 输出目录；
-- 支持 per-topic 飞书 webhook；
-- 支持关键词组权重。
+- add structured LLM analysis;
+- LLM rerank of rule-selected candidates;
+- trend observation;
+- opportunity classification.
 
-### 9.2 数据抓取
+### Storage
 
-P0：
+MVP:
 
-- 支持 Reddit OAuth；
-- 支持按 subreddit + keyword 搜索；
-- 支持 lookback_hours 过滤；
-- 支持 max_posts_per_source 限制；
-- 支持去重。
+- use SQLite for scan runs, posts, and signals;
+- avoid duplicate source IDs;
+- store report paths.
 
-P1：
+Later:
 
-- 读取 Reddit rate limit header；
-- 抓取失败自动重试；
-- 将抓取状态写入日志。
+- CSV export;
+- Supabase or Postgres;
+- historical trend statistics.
 
-### 9.3 过滤与评分
+### Notifications
 
-P0：
+MVP:
 
-- 命中 include_phrases 加分；
-- 命中 exclude_phrases 降权或剔除；
-- 标题和正文命中关键词加分；
-- 评论数、点赞数、发布时间参与评分；
-- 输出 Top N。
+- Telegram bot sends full Markdown reports;
+- Feishu webhook sends text summaries;
+- notifications can be disabled.
 
-P1：
+Later:
 
-- 支持不同主题的评分权重；
-- 支持人工反馈后调整权重；
-- 支持“已看过”去重。
+- Feishu interactive cards;
+- generic webhooks;
+- useful, not useful, and handled buttons;
+- retry on notification failure.
 
-### 9.4 报告生成
+## 10. Scoring Strategy
 
-P0：
+The MVP uses rule-first scoring and does not rely on an LLM for full-data judgment.
 
-- 生成 Markdown 报告；
-- 总结本次扫描数量、候选数量、Top N 数量；
-- 每条线索包含证据和行动建议。
+Positive signals:
 
-P1：
+| Signal | Score Impact |
+| --- | --- |
+| Topic keyword match | +1.5 per hit |
+| Strong help phrase | +3 |
+| Payment or outsourcing intent | +4 or more |
+| Pain phrase | +2 |
+| Higher comment count | small boost |
+| Fresh post | small boost |
+| Highly relevant source | small boost |
 
-- 加入 LLM 结构化分析；
-- 支持 LLM 对规则候选集做二次筛选和排序；
-- 加入趋势观察；
-- 加入竞品/服务机会分类。
+Negative signals:
 
-### 9.5 存储
+| Signal | Handling |
+| --- | --- |
+| obvious ad | penalize or remove |
+| course promotion | penalize or remove |
+| job posting | penalize |
+| stale content | remove by lookback window |
+| weak title-only match | low priority |
 
-P0：
+Buying intent levels:
 
-- 使用 SQLite 保存扫描记录、帖子、线索；
-- 避免重复保存同一 source_id；
-- 保存 report_path。
+- `strong`: clear payment, hiring, consultant, freelancer, budget, or paid help language;
+- `medium`: strong help request plus a concrete business context;
+- `weak`: pain exists but solution-seeking is unclear;
+- `none`: generic discussion or broad question.
 
-P1：
+## 11. Success Metrics
 
-- 支持导出 CSV；
-- 支持 Supabase / Postgres；
-- 支持历史趋势统计。
+| Metric | Target |
+| --- | --- |
+| Manual review time per run | <= 20 minutes |
+| Top 10 open-worthy rate | >= 30% |
+| Strong leads per week | >= 3 |
+| Report generation failure rate | < 10% |
+| Insights without source links | 0 |
+| Cost before LLM step | near 0 |
 
-### 9.6 通知
+## 12. Technical Plan
 
-P0：
-
-- 支持 Telegram bot 推送完整 Markdown 报告；
-- 支持飞书 webhook 推送文本摘要；
-- 支持关闭通知。
-
-P1：
-
-- 支持飞书交互式卡片；
-- 支持通用 webhook；
-- 支持按钮：有用 / 无用 / 已处理；
-- 支持推送失败重试。
-
----
-
-## 10. 评分策略
-
-MVP 采用规则优先评分，不依赖 LLM 判断全量数据。
-
-### 10.1 加分项
-
-| 信号 | 加分 |
-|---|---:|
-| 命中主题关键词 | +1 / 次 |
-| 命中强求助短语 | +3 |
-| 命中付费/外包意图 | +4 |
-| 命中痛点短语 | +2 |
-| 评论数较多 | +0.5 ~ +2 |
-| 近 24 小时 | +1 |
-| 来源社区高度相关 | +1 ~ +2 |
-
-### 10.2 减分/剔除项
-
-| 信号 | 处理 |
-|---|---|
-| 明显广告 | 降权或剔除 |
-| 课程推广 | 降权或剔除 |
-| 招聘帖 | 降权 |
-| 过旧内容 | 剔除 |
-| 无正文且标题弱相关 | 降权 |
-
-### 10.3 购买意图分级
-
-- strong：明确出现 willing to pay / hire / consultant / freelancer / budget / paid help；
-- medium：强求助 + 业务场景明确，但未直接提钱；
-- weak：有痛点但不明确寻求解决方案；
-- none：普通讨论或泛泛提问。
-
----
-
-## 11. 成功指标
-
-MVP 成功不是“跑起来”，而是“值得每天看”。
-
-| 指标 | 目标 |
-|---|---:|
-| 单次人工复核时间 | ≤ 20 分钟 |
-| Top 10 可点击率 | ≥ 30% |
-| 每周强信号线索 | ≥ 3 条 |
-| 报告生成失败率 | < 10% |
-| 无来源链接洞察 | 0 条 |
-| 单次运行成本 | 接近 0，LLM 前置前为 0 |
-
----
-
-## 12. 技术方案
-
-### 12.1 技术栈
+Stack:
 
 - Python 3.11+
-- Typer：CLI
-- httpx：HTTP 请求
-- Pydantic：数据模型
-- PyYAML：配置
-- SQLite：本地存储
-- Rich：终端输出
+- Typer CLI
+- httpx for HTTP
+- Pydantic for models
+- PyYAML for config
+- SQLite for local storage
+- Rich for terminal output
 
-### 12.2 部署方式
+Deployment:
 
-MVP：
+- local CLI;
+- GitHub Actions;
+- VPS cron or systemd timer;
+- future container deployment if needed.
 
-- 本地 CLI；
-- GitHub Actions Cron；
-- VPS Cron。
+## 13. Risks and Constraints
 
-V1：
+Data-source risk:
 
-- Docker；
-- Supabase / Postgres；
-- Telegram / 飞书 / 通用 webhook 推送。
+- Reddit API limits and terms can change;
+- platform anti-scraping rules may affect availability;
+- additional platforms require compliant access.
 
-V2：
+Mitigation:
 
-- Web dashboard；
-- 多用户配置；
-- 多数据源管理。
+- use official APIs or authorized data sources;
+- run at low frequency;
+- avoid retaining unnecessary raw text;
+- keep source adapters pluggable.
 
----
+Quality risk:
 
-## 13. 风险与约束
+- narrow keywords miss demand;
+- broad keywords create noise;
+- LLM summaries may become generic;
+- rules may bias results.
 
-### 13.1 数据源风险
+Mitigation:
 
-- Reddit API 有速率限制和条款约束；
-- 各平台反爬规则变化会影响可用性；
-- 小红书、X 等平台的数据接入要优先考虑合规方式。
+- use high-quality source allowlists;
+- filter with rules before LLM use;
+- keep source evidence;
+- require reports to show evidence.
 
-应对：
+Product-scope risk:
 
-- 使用官方 API 或授权数据源；
-- 低频运行；
-- 不长期保存不必要原文；
-- 对数据源做可插拔设计。
+The easiest ways to drift are building a complex UI, adding every platform, building an agent, building a CRM, or turning this into low-code orchestration. The correction principle is simple: first make the system find 3-10 real posts worth opening every day.
 
-### 13.2 结果质量风险
+## 14. Milestones
 
-- 关键词太窄会漏；
-- 关键词太宽会噪音大；
-- LLM 可能泛泛总结；
-- 规则可能偏置。
-
-应对：
-
-- 固定高质量 source 白名单；
-- 先规则筛选，再 LLM；
-- 保留人工反馈；
-- 报告必须输出证据。
-
-### 13.3 产品膨胀风险
-
-最容易走偏的方向：
-
-- 一开始做复杂 UI；
-- 一开始做全平台；
-- 一开始做 Agent；
-- 一开始做 CRM；
-- 一开始做低代码可视化编排。
-
-纠偏原则：
-
-> 先每天稳定找出 3-10 条值得点开的真实帖子，再谈系统化。
-
----
-
-## 14. 里程碑
-
-### Milestone 0：项目定义
+Milestone 0: Project definition
 
 - README
 - PRD
-- 技术架构
-- 配置样例
+- architecture
+- sample config
 
-### Milestone 1：本地 MVP
+Milestone 1: Local MVP
 
-- mock 模式可运行；
-- Reddit 抓取可运行；
-- 规则评分可运行；
-- Markdown 报告可生成；
-- SQLite 可写入。
+- mock mode;
+- Reddit collector;
+- rule scoring;
+- Markdown report;
+- SQLite writes.
 
-### Milestone 2：每日工作流
+Milestone 2: Daily workflow
 
-- GitHub Actions 定时运行；
-- Telegram / 飞书推送；
-- 历史去重；
-- 错误日志。
+- GitHub Actions schedule;
+- Telegram and Feishu notifications;
+- history deduplication;
+- error logging.
 
-### Milestone 3：LLM 分析
+Milestone 3: LLM analysis
 
-- Top N 结构化分析；
-- 机会分类；
-- 回复建议；
-- 报告质量评估。
+- Top N structured analysis;
+- opportunity classification;
+- reply suggestions;
+- report quality evaluation.
 
-### Milestone 4：多平台扩展
+Milestone 4: Multi-platform expansion
 
-- RSS；
-- Hacker News；
-- Product Hunt；
-- GitHub Issues；
-- 合规的中文平台数据源。
+- RSS;
+- Hacker News;
+- Product Hunt;
+- GitHub Issues;
+- compliant additional platform sources.
 
----
+## 15. MVP Acceptance Checklist
 
-## 15. MVP 验收清单
-
-- [ ] `lead-radar run --mock` 能生成报告；
-- [ ] 报告中每条线索有 URL；
-- [ ] 配置文件可以新增 topic；
-- [ ] Reddit 凭证配置后能抓真实数据；
-- [ ] 同一帖子不会重复出现在结果里；
-- [ ] Top N 排序符合直觉；
-- [ ] Telegram 或飞书可通过统一通知入口推送；
-- [ ] SQLite 能保存扫描历史；
-- [ ] SQLite 能保存通知发送状态；
-- [ ] 无 API key 时有清晰报错；
-- [ ] README 足够让未来开发者接手。
+- [ ] `lead-radar run --mock` generates a report.
+- [ ] Every report lead has a URL.
+- [ ] New topics can be added in config.
+- [ ] Reddit credentials enable real data fetches.
+- [ ] The same post is not repeated in results.
+- [ ] Top N ordering is reasonable.
+- [ ] Telegram or Feishu can send through the unified notification entrypoint.
+- [ ] SQLite stores scan history.
+- [ ] SQLite stores notification status.
+- [ ] Missing API keys produce clear errors.
+- [ ] README is sufficient for a future developer to continue the project.

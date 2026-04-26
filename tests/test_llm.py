@@ -33,8 +33,8 @@ def test_summary_report_payload_uses_n8n_strategy_prompt() -> None:
     payload = generator._build_payload([make_signal()])
 
     messages = payload["messages"]
-    assert "顶尖的战略分析师" in messages[0]["content"]
-    assert "战略行动建议 (Strategic Recommendations)" in messages[0]["content"]
+    assert "top-tier strategic analyst" in messages[0]["content"]
+    assert "Strategic Recommendations" in messages[0]["content"]
     assert SUMMARY_REPORT_ORIGINAL_REQUEST in messages[1]["content"]
     assert "Need an n8n workflow for invoice approvals" in messages[1]["content"]
     assert "Offer a paid n8n workflow implementation call." in messages[1]["content"]

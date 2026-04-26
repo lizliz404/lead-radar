@@ -1,132 +1,86 @@
-# Architecture：Lead Radar 技术方案
+# Architecture: Lead Radar
 
-## 1. 架构原则
+## 1. Principles
 
-Lead Radar 的技术架构遵守五个原则：
+Lead Radar follows five architecture principles:
 
-1. **代码优先**：核心逻辑必须可测试、可版本化、可迁移。
-2. **数据源可插拔**：Reddit 只是 MVP 数据源，不应该绑死系统。
-3. **规则先行**：全量数据先用规则筛，LLM 只处理少量高价值候选。
-4. **证据闭环**：所有洞察必须保留原始链接和命中证据。
-5. **低运维成本**：MVP 能用本地 CLI / cron / GitHub Actions 运行。
+1. Code first: core logic must be testable, versioned, and portable.
+2. Pluggable sources: Reddit is the MVP source, not a permanent platform lock-in.
+3. Rules before LLMs: broad data is filtered by deterministic rules before any LLM call.
+4. Evidence loop: every useful insight must point back to an original source URL.
+5. Low operational cost: the MVP should run from a local CLI, cron, GitHub Actions, or a small server.
 
----
-
-## 2. 模块划分
+## 2. Modules
 
 ```text
 lead_radar/
-  cli.py          CLI 入口
-  config.py       YAML 配置加载与校验
-  models.py       数据模型
-  reddit.py       Reddit 数据源适配器
-  scoring.py      规则过滤与评分
-  llm.py          LLM 候选集二次筛选
-  report.py       Markdown 报告生成
-  storage.py      SQLite 存储
-  feishu.py       飞书 webhook 推送
-  telegram.py     Telegram bot 推送
+  cli.py          CLI entrypoint
+  config.py       YAML configuration loading and validation
+  models.py       Pydantic data models
+  reddit.py       Reddit source adapter
+  scoring.py      rule filtering and scoring
+  llm.py          optional LLM rerank and strategic report generation
+  report.py       deterministic Markdown report builder
+  storage.py      SQLite persistence
+  feishu.py       Feishu webhook notification
+  telegram.py     Telegram bot notification
 ```
 
-### 2.1 Config
+### Config
 
-职责：
+Loads `config.yaml`, validates topics, and provides structured settings to the rest of the pipeline.
 
-- 读取 `config.yaml`；
-- 校验 topic 是否存在；
-- 为后续模块提供结构化配置。
+### Collector
 
-### 2.2 Collector
+Fetches posts from Reddit or mock data and normalizes them into `RawPost`. It should not make business judgments.
 
-职责：
+### Scorer
 
-- 从 Reddit / mock / 后续 RSS 等数据源取帖子；
-- 统一转换为 `RawPost`；
-- 不做复杂业务判断。
+Scores posts against topic rules, returns `LeadSignal`, keeps evidence, and controls the Top N candidate set.
 
-### 2.3 Scorer
+### LLM
 
-职责：
+Optionally reranks rule-selected candidates and optionally generates the final executive-style strategic report. It should operate on a small candidate set, not on unfiltered raw posts.
 
-- 按 topic 规则计算分数；
-- 输出 `LeadSignal`；
-- 保留 evidence；
-- 控制 Top N。
+### Report Builder
 
-### 2.4 Report Builder
+Builds deterministic Markdown reports from `LeadSignal` data. This remains available even when LLM reporting is disabled.
 
-职责：
+### Storage
 
-- 将 `LeadSignal` 转成 Markdown；
-- 输出可读的摘要和行动建议；
-- 后续可接 LLM 优化摘要。
+Stores scan runs, posts, signals, report paths, and notification status in SQLite.
 
-### 2.5 Storage
+### Notifier
 
-职责：
+Sends report output to Telegram or Feishu. Telegram can send the full Markdown report in chunks; Feishu currently sends a summary and local report path.
 
-- 保存 scan run；
-- 保存 post；
-- 保存 signal；
-- 保存 report path；
-- 做基础去重。
-
-### 2.6 Notifier
-
-职责：
-
-- 将报告摘要推送到 Telegram / 飞书等渠道；
-- MVP 中 Telegram 发送完整 Markdown，飞书发送摘要和报告路径；
-- V1 可升级为交互式卡片或通用 webhook。
-
----
-
-## 3. 数据流
+## 3. Data Flow
 
 ```text
-1. 用户运行 CLI
-2. CLI 加载 config.yaml
-3. 选择 topic
-4. 数据源适配器抓取 RawPost
-5. Scorer 过滤、打分、排序
-6. Report Builder 生成 Markdown
-7. Storage 写入 SQLite
-8. Notifier 可选推送 Telegram / 飞书
+1. User runs the CLI
+2. CLI loads config.yaml
+3. CLI selects a topic
+4. Collector fetches RawPost items
+5. Scorer filters, scores, and sorts posts
+6. Optional LLM reranker reorders the candidate set
+7. Deterministic report builder or LLM report generator writes Markdown
+8. Storage writes SQLite history
+9. Notifier optionally sends Telegram or Feishu messages
 ```
 
----
+## 4. Why Not Send Everything to an LLM
 
-## 4. 为什么不一开始做 LLM 全自动判断
+LLMs are useful for semantic synthesis, not for replacing the full filtering layer. Sending every fetched post to an LLM creates avoidable cost, latency, prompt complexity, and debugging difficulty.
 
-LLM 的价值在于语义总结，不在于替代所有过滤。
-
-如果一开始把所有帖子都丢给 LLM，会带来：
-
-- 成本浪费；
-- 速度变慢；
-- 结果不可控；
-- Prompt 调试复杂；
-- 误判难以定位。
-
-因此 MVP 采用：
+The intended flow is:
 
 ```text
-全量帖子 → 规则粗筛 → Top N → 后续 LLM 深分析
+all posts -> rule filter -> Top N candidates -> optional LLM analysis
 ```
 
-LLM 后续只处理 Top 10/20，而不是处理几百条噪音。
+## 5. Data Model
 
-当前实现预留 OpenAI-compatible API 入口，可通过 `--llm-rerank` 让 LLM 在规则候选集上做第二轮筛选和排序。默认关闭，避免没有 API key 时影响本地 MVP。
-
----
-
-## 5. 数据模型
-
-### RawPost
-
-代表原始帖子，跨平台统一。
-
-核心字段：
+`RawPost` represents a normalized source post:
 
 - `source`
 - `source_id`
@@ -138,12 +92,9 @@ LLM 后续只处理 Top 10/20，而不是处理几百条噪音。
 - `created_at`
 - `upvotes`
 - `num_comments`
+- `raw`
 
-### LeadSignal
-
-代表经过评分后的线索。
-
-核心字段：
+`LeadSignal` represents a scored opportunity:
 
 - `post`
 - `score`
@@ -154,113 +105,53 @@ LLM 后续只处理 Top 10/20，而不是处理几百条噪音。
 - `recommended_action`
 - `tags`
 
----
+## 6. Extension Points
 
-## 6. 扩展点
+### New Sources
 
-### 6.1 新增数据源
+Add a new source adapter that returns `list[RawPost]`. Candidate sources include RSS, Hacker News, Product Hunt, GitHub Issues, and compliant APIs for other public platforms.
 
-新增一个数据源时，只需要实现：
+### New LLM Analysis
 
-```python
-class SourceClient:
-    def fetch(self, topic: TopicConfig) -> list[RawPost]:
-        ...
-```
+Keep LLM analysis downstream of rule scoring. Recommended outputs include pain category, buying intent, business context, recommended action, confidence, and source evidence.
 
-候选数据源：
+### New Notification Channels
 
-- RSS
-- Hacker News Algolia API
-- Product Hunt API
-- GitHub Issues Search API
-- 合规中文平台数据接口
+The notification layer can support additional webhooks, email, Slack, Discord, or interactive cards without changing the scoring pipeline.
 
-### 6.2 新增 LLM 分析
+## 7. Deployment Options
 
-新增 LLM 模块时，建议只处理 `LeadSignal` 的 Top N。
-
-输出结构：
-
-```json
-{
-  "pain_summary": "...",
-  "buying_intent": "strong|medium|weak|none",
-  "opportunity": "...",
-  "recommended_action": "...",
-  "confidence": 0.0
-}
-```
-
-### 6.3 新增推送渠道
-
-Notifier 可以扩展为：
-
-- Telegram
-- Feishu
-- Slack
-- Email
-- Notion
-- Airtable
-
----
-
-## 7. 部署方案
-
-### 7.1 本地手动运行
-
-适合 MVP 验证。
+Local manual run:
 
 ```bash
 lead-radar run --config config.yaml --topic paid_demand_signals
 ```
 
-### 7.2 GitHub Actions Cron
-
-适合每日自动推送。
-
-```yaml
-on:
-  schedule:
-    - cron: "0 0 * * *"
-```
-
-### 7.3 VPS Cron
-
-适合长期稳定运行。
-
-```bash
-0 8 * * * cd /app/lead-radar && lead-radar run --config config.yaml --topic paid_demand_signals --notify telegram
-```
-
----
-
-## 8. 安全与合规
-
-- API key 只通过环境变量读取；
-- 不提交 `.env`；
-- 不长期保存不必要个人数据；
-- 尊重平台删除内容和数据保留要求；
-- 不做自动骚扰和批量私信；
-- 输出报告作为人工判断辅助。
-
----
-
-## 9. 后续架构升级
-
-当 MVP 证明有价值后，再考虑升级：
+GitHub Actions:
 
 ```text
-SQLite → Postgres / Supabase
-CLI → API Service
-Markdown → Dashboard
-Text webhook → Telegram / Feishu / Generic webhook
-Rule scoring → Rule + LLM + feedback learning
-Single topic → Multi-topic workspace
+scheduled workflow -> install package -> run CLI -> upload report artifacts -> send notification
 ```
 
-每次升级都必须回答：
+Server or cron:
 
-> 这个复杂度是否能提高线索质量、降低人工复核成本，或提升稳定性？
+```text
+cron/systemd timer -> CLI -> SQLite -> notification
+```
 
-如果不能，就不做。
+## 8. Security and Compliance
+
+- Read API keys only from environment variables.
+- Do not commit `.env`.
+- Avoid retaining unnecessary personal data.
+- Respect platform deletion, retention, and API rules.
+- Do not automate spam, harassment, or bulk private outreach.
+- Treat reports as human decision support.
+
+## 9. Upgrade Criteria
+
+Before adding complexity, answer one question:
+
+> Will this improve lead quality, reduce manual review cost, or improve reliability enough to justify the added system surface?
+
+If not, keep the architecture simple.

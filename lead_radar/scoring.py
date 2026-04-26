@@ -161,17 +161,17 @@ def confidence_from_score(score: float) -> float:
 
 def make_pain_summary(post: RawPost, pain_hits: list[str], help_hits: list[str]) -> str:
     if pain_hits:
-        return f"疑似痛点：{', '.join(pain_hits[:3])}。需要人工打开原帖确认具体业务场景。"
+        return f"Likely pain signals: {', '.join(pain_hits[:3])}. Open the source post to confirm the business context."
     if help_hits:
-        return f"疑似求助：{', '.join(help_hits[:3])}。需要确认是否存在明确预算或交付意图。"
-    return "未识别出强痛点，可能只是普通讨论；建议低优先级查看。"
+        return f"Likely help request: {', '.join(help_hits[:3])}. Check whether budget or implementation intent is present."
+    return "No strong pain was detected. This may be generic discussion; review at low priority."
 
 
 def make_recommended_action(intent: BuyingIntent, post: RawPost) -> str:
     if intent == "strong":
-        return "优先打开原帖；如果语境合适，可回复一个具体诊断问题，并提供轻量咨询/方案拆解。"
+        return "Open the source post first. If the context fits, ask one concrete diagnostic question and offer a lightweight consultation or solution breakdown."
     if intent == "medium":
-        return "打开原帖确认业务场景；寻找是否有工具栈、预算、截止时间、重复劳动等线索。"
+        return "Open the source post and confirm the business context. Look for tool stack, budget, deadline, or repetitive-work clues."
     if intent == "weak":
-        return "作为内容选题或需求观察记录，不建议立即销售触达。"
-    return "低优先级，仅用于趋势观察。"
+        return "Use this as content research or demand observation. Do not treat it as an immediate sales lead."
+    return "Low priority. Use only for trend observation."

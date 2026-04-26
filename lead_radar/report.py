@@ -20,16 +20,16 @@ def build_markdown_report(result: ScanResult, topic: TopicConfig) -> str:
     lines.append(f"- Strong intent: {strong}")
     lines.append(f"- Medium intent: {medium}")
     lines.append("")
-    lines.append("## 今日判断")
+    lines.append("## Daily Judgment")
     lines.append("")
     if strong:
-        lines.append(f"发现 {strong} 条强付费/外包意图信号，建议优先人工复核。")
+        lines.append(f"Found {strong} strong payment or outsourcing intent signals. Review these first.")
     elif medium:
-        lines.append(f"未发现强付费信号，但有 {medium} 条中等需求信号，可作为选题或潜在线索复核。")
+        lines.append(f"No strong payment signals found, but {medium} medium-intent signals may be useful leads.")
     elif result.signals:
-        lines.append("发现少量弱信号，更适合做趋势观察，不建议立即触达。")
+        lines.append("Found weak signals. Treat them as trend observations, not immediate outreach targets.")
     else:
-        lines.append("本次未发现值得行动的高信号线索。")
+        lines.append("No high-signal actionable leads were found in this run.")
     lines.append("")
     lines.append("## Top Leads")
     lines.append("")
@@ -53,12 +53,12 @@ def build_markdown_report(result: ScanResult, topic: TopicConfig) -> str:
         lines.append(f"- URL: {post.url}")
         lines.append("")
 
-    lines.append("## 复盘问题")
+    lines.append("## Review Questions")
     lines.append("")
-    lines.append("1. Top 10 里有多少条值得点开？")
-    lines.append("2. 哪些关键词带来了噪音？")
-    lines.append("3. 哪些 subreddit 的信号质量最高？")
-    lines.append("4. 是否需要增加/删除 include_phrases 或 exclude_phrases？")
+    lines.append("1. How many Top 10 leads are worth opening?")
+    lines.append("2. Which keywords created noise?")
+    lines.append("3. Which subreddits produced the highest-quality signals?")
+    lines.append("4. Should any include_phrases or exclude_phrases be added or removed?")
     lines.append("")
     return "\n".join(lines)
 

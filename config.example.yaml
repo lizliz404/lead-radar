@@ -1,6 +1,6 @@
 topics:
   - name: paid_demand_signals
-    description: 找公开社区里带有付费、外包、采购或强求助意图的需求信号
+    description: Find public community posts with payment, outsourcing, procurement, or strong help-seeking intent.
     sources:
       reddit:
         subreddits:
