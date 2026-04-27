@@ -321,3 +321,11 @@ V2:
 3. Keep every insight traceable to a source link.
 4. Prefer CLI and scheduled jobs until product complexity is justified.
 5. Optimize output for the next action, not for sounding impressive.
+
+## Status
+
+Usable prototype. Active development toward V1.
+
+## License
+
+No license specified yet.
