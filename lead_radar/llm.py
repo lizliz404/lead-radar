@@ -9,6 +9,13 @@ import httpx
 from lead_radar.models import LeadSignal, TopicConfig
 
 
+def llm_is_configured() -> bool:
+    return all(
+        os.getenv(key)
+        for key in ["LEAD_RADAR_LLM_API_KEY", "LEAD_RADAR_LLM_BASE_URL", "LEAD_RADAR_LLM_MODEL"]
+    )
+
+
 SUMMARY_REPORT_ORIGINAL_REQUEST = (
     "Find whether users have demand for n8n workflow creation. Prioritize real business "
     "implementation scenarios, preferably with clear willingness to pay."
@@ -154,6 +161,94 @@ class LLMReranker:
 
     def _signal_id(self, signal: LeadSignal) -> str:
         return f"{signal.post.source}:{signal.post.source_id}"
+
+
+class LLMIntentParser:
+    """OpenAI-compatible parser that turns a loose market brief into scan parameters."""
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+        timeout: float = 45.0,
+    ) -> None:
+        self.api_key = api_key or os.getenv("LEAD_RADAR_LLM_API_KEY")
+        self.base_url = (base_url or os.getenv("LEAD_RADAR_LLM_BASE_URL") or "").rstrip("/")
+        self.model = model or os.getenv("LEAD_RADAR_LLM_MODEL")
+        self.timeout = timeout
+
+    def parse(self, brief: str) -> dict[str, Any]:
+        if not self.api_key:
+            raise RuntimeError("Missing LEAD_RADAR_LLM_API_KEY")
+        if not self.base_url:
+            raise RuntimeError("Missing LEAD_RADAR_LLM_BASE_URL")
+        if not self.model:
+            raise RuntimeError("Missing LEAD_RADAR_LLM_MODEL")
+
+        payload = self._build_payload(brief)
+        response_text = self._call(payload)
+        data = json.loads(response_text)
+        return self._normalize(data)
+
+    def _build_payload(self, brief: str) -> dict[str, Any]:
+        system = """You convert a user's loose business research brief into concrete Reddit scan parameters.
+Return compact JSON only. Do not include prose.
+
+Schema:
+{
+  "target_users": "short buyer/user segment",
+  "keywords": ["5-12 concrete search phrases"],
+  "subreddits": ["5-10 subreddit names without r/"],
+  "include_phrases": ["pain, help, buying, alternative, recommendation phrases"],
+  "exclude_phrases": ["noise filters"],
+  "lookback_hours": 168,
+  "output_top_n": 10
+}
+
+Rules:
+- Prefer concrete phrases users would actually write in Reddit posts.
+- Include pain/problem words, alternatives, recommendations, budget, manual workflow, and tool-stack phrases.
+- Choose broad but relevant communities. Avoid niche hallucinated subreddit names unless very likely.
+- Keep it useful for commercial insight and demand validation, not generic SEO keyword research."""
+        return {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": brief},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+
+    def _call(self, payload: dict[str, Any]) -> str:
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+
+    def _normalize(self, data: dict[str, Any]) -> dict[str, Any]:
+        def list_of_strings(key: str) -> list[str]:
+            value = data.get(key)
+            if not isinstance(value, list):
+                return []
+            return [str(item).strip() for item in value if str(item).strip()]
+
+        return {
+            "target_users": str(data.get("target_users") or "").strip(),
+            "keywords": list_of_strings("keywords"),
+            "subreddits": list_of_strings("subreddits"),
+            "include_phrases": list_of_strings("include_phrases"),
+            "exclude_phrases": list_of_strings("exclude_phrases"),
+            "lookback_hours": int(data.get("lookback_hours") or 168),
+            "output_top_n": int(data.get("output_top_n") or 10),
+        }
 
 
 class LLMReportGenerator:

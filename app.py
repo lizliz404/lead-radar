@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 from lead_radar.cli import load_mock_posts
 from lead_radar.config import load_config
-from lead_radar.llm import LLMReportGenerator, LLMReranker
+from lead_radar.llm import LLMIntentParser, LLMReportGenerator, LLMReranker, llm_is_configured
 from lead_radar.models import LeadSignal, RedditSourceConfig, ScanResult, SourcesConfig, TopicConfig
 from lead_radar.reddit import RedditClient
 from lead_radar.report import build_markdown_report, write_report
@@ -35,14 +35,13 @@ DEFAULT_CUSTOM_SUBREDDITS = [
     "productmanagement",
 ]
 
-MARKET_BRIEF_EXAMPLES = """
-Examples:
-- I want to research Shopify sellers who struggle with inventory forecasting and cash-flow planning.
-- Find demand signals from indie hackers looking for better Stripe analytics, churn alerts, or revenue dashboards.
-- Analyze pain points from US pet owners dealing with insurance claims, denied reimbursements, and high vet bills.
-- I am exploring an AI note-taking product for consultants who turn client calls into proposals and follow-up tasks.
-- Find small-business owners complaining about manual reporting, spreadsheet workflows, and Zapier limits.
-""".strip()
+MARKET_BRIEF_EXAMPLES = [
+    "I want to research Shopify sellers who struggle with inventory forecasting and cash-flow planning.",
+    "Find demand signals from indie hackers looking for better Stripe analytics, churn alerts, or revenue dashboards.",
+    "Analyze pain points from US pet owners dealing with insurance claims, denied reimbursements, and high vet bills.",
+    "I am exploring an AI note-taking product for consultants who turn client calls into proposals and follow-up tasks.",
+    "Find small-business owners complaining about manual reporting, spreadsheet workflows, and Zapier limits.",
+]
 
 DEFAULT_INTENT_PHRASES = [
     "need help",
@@ -211,13 +210,14 @@ def build_custom_topic(
     subreddits: str,
     must_include: str,
     exclude_phrases: str,
+    include_phrases: str,
     lookback_hours: int,
     max_posts_per_source: int,
     output_top_n: int,
 ) -> TopicConfig:
     keywords = extract_brief_keywords(brief, target_users, must_include)
     communities = split_csv_field(subreddits) or DEFAULT_CUSTOM_SUBREDDITS
-    includes = DEFAULT_INTENT_PHRASES + keywords[:6] + split_csv_field(must_include)
+    includes = DEFAULT_INTENT_PHRASES + keywords[:6] + split_csv_field(must_include) + split_csv_field(include_phrases)
     excludes = DEFAULT_EXCLUDE_PHRASES + split_csv_field(exclude_phrases)
 
     return TopicConfig(
@@ -233,6 +233,61 @@ def build_custom_topic(
         min_upvotes=0,
         output_top_n=output_top_n,
     )
+
+
+def apply_plan_to_session(plan: dict[str, Any]) -> None:
+    if plan.get("target_users"):
+        st.session_state["target_users"] = plan["target_users"]
+    if plan.get("keywords"):
+        st.session_state["must_include"] = ", ".join(plan["keywords"][:12])
+    if plan.get("subreddits"):
+        st.session_state["subreddits"] = ", ".join(plan["subreddits"][:10])
+    if plan.get("include_phrases"):
+        st.session_state["include_phrases"] = ", ".join(plan["include_phrases"][:14])
+    if plan.get("exclude_phrases"):
+        st.session_state["exclude_phrases"] = ", ".join(plan["exclude_phrases"][:10])
+    if plan.get("lookback_hours"):
+        st.session_state["lookback_hours"] = int(plan["lookback_hours"])
+    if plan.get("output_top_n"):
+        st.session_state["output_top_n"] = int(plan["output_top_n"])
+
+
+def heuristic_plan_from_brief(brief: str) -> dict[str, Any]:
+    keywords = extract_brief_keywords(brief)
+    return {
+        "keywords": keywords,
+        "subreddits": DEFAULT_CUSTOM_SUBREDDITS,
+        "include_phrases": DEFAULT_INTENT_PHRASES + keywords[:6],
+        "exclude_phrases": DEFAULT_EXCLUDE_PHRASES,
+        "lookback_hours": 168,
+        "output_top_n": 10,
+    }
+
+
+def initialize_custom_scan_state() -> None:
+    defaults: dict[str, Any] = {
+        "brief": "",
+        "target_users": "",
+        "must_include": "",
+        "subreddits": ", ".join(DEFAULT_CUSTOM_SUBREDDITS),
+        "include_phrases": ", ".join(DEFAULT_INTENT_PHRASES),
+        "exclude_phrases": ", ".join(DEFAULT_EXCLUDE_PHRASES),
+        "lookback_hours": 168,
+        "output_top_n": 10,
+        "max_posts_per_source": 25,
+    }
+    for key, value in defaults.items():
+        st.session_state.setdefault(key, value)
+
+
+def render_scan_plan(topic: TopicConfig) -> None:
+    with st.expander("Generated scan plan", expanded=True):
+        st.markdown(f"**Topic:** `{topic.name}`")
+        communities = topic.sources.reddit.subreddits if topic.sources.reddit else []
+        st.markdown(f"**Communities:** {', '.join(communities)}")
+        st.markdown(f"**Keywords:** {', '.join(topic.keywords)}")
+        st.markdown(f"**Intent phrases:** {', '.join(topic.include_phrases[:18])}")
+        st.markdown(f"**Exclude:** {', '.join(topic.exclude_phrases)}")
 
 
 def signal_rows(
@@ -369,16 +424,81 @@ def main() -> None:
     st.title(APP_NAME)
     st.caption("Public-community demand radar: collect → score → preview → export → review.")
 
-    with st.expander("How it works", expanded=True):
-        st.markdown(
-            """
-            1. Describe the market, user, product idea, or pain you want to investigate.
-            2. Lead Radar turns that brief into a scan plan: keywords, intent phrases, communities, and filters.
-            3. Collect mock data or real Reddit posts.
-            4. Score demand signals with deterministic rules first; optionally rerank or write the report with an LLM.
-            5. Preview top leads, download CSV/Markdown, and mark which signals are actually useful.
-            """
+    initialize_custom_scan_state()
+
+    st.subheader("Describe the market you want to investigate")
+    st.caption("One paragraph is enough. Lead Radar will turn it into Reddit search parameters and a demand-signal report.")
+
+    example_cols = st.columns(len(MARKET_BRIEF_EXAMPLES))
+    for index, example in enumerate(MARKET_BRIEF_EXAMPLES):
+        if example_cols[index].button(f"Example {index + 1}", use_container_width=True):
+            st.session_state["brief"] = example
+            apply_plan_to_session(heuristic_plan_from_brief(example))
+
+    brief = st.text_area(
+        "Market / product brief",
+        height=125,
+        placeholder="Example: I want to research Shopify sellers who struggle with inventory forecasting, cash-flow planning, and manual spreadsheet reporting.",
+        key="brief",
+        label_visibility="collapsed",
+    )
+
+    ai_configured = llm_is_configured()
+    parse_col, run_col = st.columns([1, 1])
+    with parse_col:
+        parse_clicked = st.button(
+            "AI-generate scan plan",
+            use_container_width=True,
+            disabled=not brief.strip() or not ai_configured,
+            help="Uses LEAD_RADAR_LLM_* env vars. If disabled, the app still generates a local heuristic plan automatically.",
         )
+    with run_col:
+        run_clicked = st.button("Run scan", type="primary", use_container_width=True, disabled=not brief.strip())
+
+    if brief.strip() and not any(st.session_state.get(key) for key in ["must_include", "target_users"]):
+        apply_plan_to_session(heuristic_plan_from_brief(brief))
+
+    if parse_clicked:
+        try:
+            with st.spinner("Parsing intent into scan parameters…"):
+                apply_plan_to_session(LLMIntentParser().parse(brief))
+            st.success("Scan plan generated")
+        except Exception as exc:
+            apply_plan_to_session(heuristic_plan_from_brief(brief))
+            st.warning(f"AI parsing failed; using local heuristic plan instead. {exc}")
+
+    if not ai_configured:
+        st.caption("AI scan-plan generation is not configured in this environment, so this demo uses a local heuristic parser.")
+
+    with st.expander("Advanced scan parameters", expanded=False):
+        st.text_input(
+            "Target users / buyers",
+            placeholder="Example: Shopify merchants, indie hackers, pet owners, consultants",
+            key="target_users",
+        )
+        st.text_input(
+            "Must-include keywords",
+            placeholder="Example: inventory forecasting, cash flow, spreadsheet",
+            key="must_include",
+        )
+        st.text_input(
+            "Communities",
+            help="Comma-separated subreddit names. Keep this broad for discovery; narrow it after the first run.",
+            key="subreddits",
+        )
+        st.text_input(
+            "Intent phrases",
+            help="Pain, buying, help-request, alternative, and recommendation phrases used for scoring.",
+            key="include_phrases",
+        )
+        st.text_input("Exclude phrases", help="Comma-separated noise filters.", key="exclude_phrases")
+        plan_col1, plan_col2, plan_col3 = st.columns(3)
+        with plan_col1:
+            st.number_input("Lookback hours", min_value=1, max_value=720, key="lookback_hours")
+        with plan_col2:
+            st.number_input("Top signals", min_value=1, max_value=50, key="output_top_n")
+        with plan_col3:
+            st.slider("Max posts per community / keyword", min_value=5, max_value=100, key="max_posts_per_source")
 
     with st.sidebar:
         st.header("Run settings")
@@ -398,93 +518,35 @@ def main() -> None:
         st.divider()
         st.caption("For real Reddit or LLM runs, set env vars or Streamlit secrets. API keys are not entered in this UI.")
 
-    scan_mode = st.radio(
-        "Scan input",
-        ["Custom market brief", "Saved config topic"],
-        horizontal=True,
-        help="Use Custom market brief for user testing. Saved config topic is mainly for repeatable scheduled runs.",
-    )
-
     custom_topic: TopicConfig | None = None
     topic_name = ""
-
-    if scan_mode == "Custom market brief":
-        st.subheader("Market brief")
-        st.caption("Describe the market or product idea in plain English. The scan plan below is editable before you run it.")
-        st.caption(MARKET_BRIEF_EXAMPLES)
-
-        brief = st.text_area(
-            "What should Lead Radar investigate?",
-            value="",
-            height=110,
-            placeholder="Example: Find demand signals from Shopify sellers who struggle with inventory forecasting, cash-flow planning, and manual spreadsheet reporting.",
+    if brief.strip():
+        custom_topic = build_custom_topic(
+            brief=brief,
+            target_users=st.session_state["target_users"],
+            subreddits=st.session_state["subreddits"],
+            must_include=st.session_state["must_include"],
+            exclude_phrases=st.session_state["exclude_phrases"],
+            include_phrases=st.session_state["include_phrases"],
+            lookback_hours=int(st.session_state["lookback_hours"]),
+            max_posts_per_source=int(st.session_state["max_posts_per_source"]),
+            output_top_n=int(st.session_state["output_top_n"]),
         )
-        detail_col1, detail_col2 = st.columns(2)
-        with detail_col1:
-            target_users = st.text_input(
-                "Target users / buyers",
-                placeholder="Example: Shopify merchants, indie hackers, pet owners, consultants",
-            )
-        with detail_col2:
-            must_include = st.text_input(
-                "Must-include keywords",
-                placeholder="Example: inventory forecasting, cash flow, spreadsheet",
-            )
-
-        plan_col1, plan_col2, plan_col3 = st.columns([1.4, 1, 1])
-        with plan_col1:
-            subreddits = st.text_input(
-                "Communities",
-                value=", ".join(DEFAULT_CUSTOM_SUBREDDITS),
-                help="Comma-separated subreddit names. Keep this broad for discovery; narrow it after the first run.",
-            )
-        with plan_col2:
-            lookback_hours = st.number_input("Lookback hours", min_value=1, max_value=720, value=168)
-        with plan_col3:
-            output_top_n = st.number_input("Top signals", min_value=1, max_value=50, value=10)
-
-        exclude_phrases = st.text_input(
-            "Exclude phrases",
-            value=", ".join(DEFAULT_EXCLUDE_PHRASES),
-            help="Comma-separated noise filters.",
-        )
-        max_posts_per_source = st.slider("Max posts per community / keyword", min_value=5, max_value=100, value=25)
-
-        if brief.strip():
-            custom_topic = build_custom_topic(
-                brief=brief,
-                target_users=target_users,
-                subreddits=subreddits,
-                must_include=must_include,
-                exclude_phrases=exclude_phrases,
-                lookback_hours=int(lookback_hours),
-                max_posts_per_source=int(max_posts_per_source),
-                output_top_n=int(output_top_n),
-            )
-            topic_name = custom_topic.name
-            with st.expander("Generated scan plan", expanded=True):
-                st.markdown(f"**Topic:** `{custom_topic.name}`")
-                communities = custom_topic.sources.reddit.subreddits if custom_topic.sources.reddit else []
-                st.markdown(f"**Communities:** {', '.join(communities)}")
-                st.markdown(f"**Keywords:** {', '.join(custom_topic.keywords)}")
-                st.markdown(f"**Intent phrases:** {', '.join(custom_topic.include_phrases[:18])}")
-                st.markdown(f"**Exclude:** {', '.join(custom_topic.exclude_phrases)}")
-        else:
-            st.info("Enter a market brief to generate a scan plan.")
+        topic_name = custom_topic.name
+        render_scan_plan(custom_topic)
     else:
-        try:
-            topics = cached_topic_names(config_path)
-        except Exception as exc:
-            st.error(f"Could not load config: {exc}")
-            st.stop()
-        topic_name = st.selectbox("Topic", topics)
+        st.info("Paste a market brief or click an example to start.")
 
-    run_clicked = st.button(
-        "Run scan",
-        type="primary",
-        use_container_width=True,
-        disabled=scan_mode == "Custom market brief" and custom_topic is None,
-    )
+    with st.expander("How it works", expanded=False):
+        st.markdown(
+            """
+            1. Describe the market, user, product idea, or pain you want to investigate.
+            2. Lead Radar turns that brief into a scan plan: keywords, intent phrases, communities, and filters.
+            3. Collect mock data or real Reddit posts.
+            4. Score demand signals with deterministic rules first; optionally rerank or write the report with an LLM.
+            5. Preview top leads, download CSV/Markdown, and mark which signals are actually useful.
+            """
+        )
 
     if run_clicked:
         try:
