@@ -203,6 +203,7 @@ Schema:
   "include_phrases": ["pain, help, buying, alternative, recommendation phrases"],
   "exclude_phrases": ["noise filters"],
   "lookback_hours": 168,
+  "max_posts_per_source": 25,
   "output_top_n": 10
 }
 
@@ -247,6 +248,7 @@ Rules:
             "include_phrases": list_of_strings("include_phrases"),
             "exclude_phrases": list_of_strings("exclude_phrases"),
             "lookback_hours": int(data.get("lookback_hours") or 168),
+            "max_posts_per_source": int(data.get("max_posts_per_source") or 25),
             "output_top_n": int(data.get("output_top_n") or 10),
         }
 

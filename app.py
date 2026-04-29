@@ -4,11 +4,13 @@ import csv
 import io
 import os
 import re
+import html as html_lib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from lead_radar.cli import load_mock_posts
@@ -248,20 +250,44 @@ def apply_plan_to_session(plan: dict[str, Any]) -> None:
         st.session_state["exclude_phrases"] = ", ".join(plan["exclude_phrases"][:10])
     if plan.get("lookback_hours"):
         st.session_state["lookback_hours"] = int(plan["lookback_hours"])
+    if plan.get("max_posts_per_source"):
+        st.session_state["max_posts_per_source"] = int(plan["max_posts_per_source"])
     if plan.get("output_top_n"):
         st.session_state["output_top_n"] = int(plan["output_top_n"])
 
 
+def infer_numeric_plan(brief: str) -> dict[str, int]:
+    plan: dict[str, int] = {}
+    lowered = brief.lower()
+    number_matches = [int(item) for item in re.findall(r"\b(\d{1,3})\b", lowered)]
+    if not number_matches:
+        return plan
+
+    for number in number_matches:
+        if re.search(rf"\b{number}\b\s*(posts?|threads?|leads?|signals?|results?|篇|条|个)", lowered):
+            plan["max_posts_per_source"] = max(5, min(number, 100))
+            plan["output_top_n"] = max(1, min(number, 50))
+            break
+        if re.search(rf"\b{number}\b\s*(hours?|hrs?|小时)", lowered):
+            plan["lookback_hours"] = max(1, min(number, 720))
+        if re.search(rf"\b{number}\b\s*(days?|天)", lowered):
+            plan["lookback_hours"] = max(1, min(number * 24, 720))
+    return plan
+
+
 def heuristic_plan_from_brief(brief: str) -> dict[str, Any]:
     keywords = extract_brief_keywords(brief)
-    return {
+    plan: dict[str, Any] = {
         "keywords": keywords,
         "subreddits": DEFAULT_CUSTOM_SUBREDDITS,
         "include_phrases": DEFAULT_INTENT_PHRASES + keywords[:6],
         "exclude_phrases": DEFAULT_EXCLUDE_PHRASES,
         "lookback_hours": 168,
+        "max_posts_per_source": 25,
         "output_top_n": 10,
     }
+    plan.update(infer_numeric_plan(brief))
+    return plan
 
 
 def initialize_custom_scan_state() -> None:
@@ -278,6 +304,77 @@ def initialize_custom_scan_state() -> None:
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
+
+
+def render_example_carousel() -> None:
+    cards = "".join(
+        f"""
+        <div class='example-card'>
+          <div class='example-kicker'>Example {index}</div>
+          <div class='example-text'>{html_lib.escape(example)}</div>
+        </div>
+        """
+        for index, example in enumerate(MARKET_BRIEF_EXAMPLES, start=1)
+    )
+    components.html(
+        f"""
+        <style>
+          .carousel-wrap {{
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            border: 1px solid #e8e8e8;
+            border-radius: 14px;
+            padding: 14px;
+            background: #fafafa;
+          }}
+          .carousel-track {{
+            display: flex;
+            gap: 14px;
+            width: max-content;
+            animation: leadRadarScroll 28s linear infinite;
+          }}
+          .carousel-wrap:hover .carousel-track {{ animation-play-state: paused; }}
+          .example-card {{
+            scroll-snap-align: start;
+            width: 310px;
+            min-height: 108px;
+            border: 1px solid #e3e3e3;
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            flex: 0 0 auto;
+          }}
+          .example-kicker {{
+            color: #777;
+            font-size: 12px;
+            font-weight: 650;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }}
+          .example-text {{
+            color: #333;
+            font-size: 14px;
+            line-height: 1.45;
+          }}
+          @keyframes leadRadarScroll {{
+            0%, 12% {{ transform: translateX(0); }}
+            22%, 34% {{ transform: translateX(-324px); }}
+            44%, 56% {{ transform: translateX(-648px); }}
+            66%, 78% {{ transform: translateX(-972px); }}
+            88%, 100% {{ transform: translateX(-1296px); }}
+          }}
+          @media (prefers-reduced-motion: reduce) {{
+            .carousel-track {{ animation: none; }}
+          }}
+        </style>
+        <div class='carousel-wrap'>
+          <div class='carousel-track'>{cards}</div>
+        </div>
+        """,
+        height=168,
+    )
 
 
 def render_scan_plan(topic: TopicConfig) -> None:
@@ -427,30 +524,36 @@ def main() -> None:
     initialize_custom_scan_state()
 
     st.subheader("Describe the market you want to investigate")
-    st.caption("One paragraph is enough. Lead Radar will turn it into Reddit search parameters and a demand-signal report.")
-
-    example_cols = st.columns(len(MARKET_BRIEF_EXAMPLES))
-    for index, example in enumerate(MARKET_BRIEF_EXAMPLES):
-        if example_cols[index].button(f"Example {index + 1}", use_container_width=True):
-            st.session_state["brief"] = example
-            apply_plan_to_session(heuristic_plan_from_brief(example))
+    st.caption("One paragraph is enough. Mention users, pain, market, sources, timeframe, and how many posts/signals you want if you care.")
 
     brief = st.text_area(
         "Market / product brief",
         height=125,
-        placeholder="Example: I want to research Shopify sellers who struggle with inventory forecasting, cash-flow planning, and manual spreadsheet reporting.",
+        placeholder="Example: Research Shopify sellers struggling with inventory forecasting and cash-flow planning. Look back 7 days and return 20 posts/signals.",
         key="brief",
         label_visibility="collapsed",
     )
+
+    st.caption("Examples — swipe horizontally or hover to pause")
+    render_example_carousel()
+    example_choice = st.selectbox(
+        "Use an example",
+        ["Choose an example…", *MARKET_BRIEF_EXAMPLES],
+        label_visibility="collapsed",
+    )
+    if example_choice != "Choose an example…" and st.button("Use selected example", use_container_width=True):
+        st.session_state["brief"] = example_choice
+        apply_plan_to_session(heuristic_plan_from_brief(example_choice))
+        st.rerun()
 
     ai_configured = llm_is_configured()
     parse_col, run_col = st.columns([1, 1])
     with parse_col:
         parse_clicked = st.button(
-            "AI-generate scan plan",
+            "Generate scan plan",
             use_container_width=True,
-            disabled=not brief.strip() or not ai_configured,
-            help="Uses LEAD_RADAR_LLM_* env vars. If disabled, the app still generates a local heuristic plan automatically.",
+            disabled=not brief.strip(),
+            help="Uses AI when LEAD_RADAR_LLM_* is configured; otherwise uses the local parser.",
         )
     with run_col:
         run_clicked = st.button("Run scan", type="primary", use_container_width=True, disabled=not brief.strip())
@@ -461,7 +564,11 @@ def main() -> None:
     if parse_clicked:
         try:
             with st.spinner("Parsing intent into scan parameters…"):
-                apply_plan_to_session(LLMIntentParser().parse(brief))
+                if ai_configured:
+                    plan = LLMIntentParser().parse(brief)
+                else:
+                    plan = heuristic_plan_from_brief(brief)
+                apply_plan_to_session(plan)
             st.success("Scan plan generated")
         except Exception as exc:
             apply_plan_to_session(heuristic_plan_from_brief(brief))
