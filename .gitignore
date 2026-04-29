@@ -10,3 +10,6 @@ reports/*.md
 reports/*.json
 data/*.sqlite
 data/*.db
+node_modules/
+.next/
+out/
