@@ -135,5 +135,52 @@ def list_topics(
         console.print(f"[bold]{item.name}[/bold] - {item.description}")
 
 
+@app.command("review")
+def review_signal(
+    run_id: Annotated[int, typer.Option("--run-id")],
+    source: Annotated[str, typer.Option("--source")] = "reddit",
+    source_id: Annotated[str, typer.Option("--source-id")] = "",
+    status: Annotated[
+        str,
+        typer.Option("--status", help="new/useful/not_useful/contacted/replied/converted"),
+    ] = "useful",
+    note: Annotated[str, typer.Option("--note")] = "",
+    db_path: Annotated[str | None, typer.Option("--db-path")] = None,
+) -> None:
+    """Mark a candidate signal after manual review."""
+    if not source_id:
+        raise typer.BadParameter("--source-id is required")
+    allowed = {"new", "useful", "not_useful", "contacted", "replied", "converted"}
+    if status not in allowed:
+        raise typer.BadParameter(f"--status must be one of: {', '.join(sorted(allowed))}")
+
+    store_path = db_path or os.getenv("LEAD_RADAR_DB_PATH") or "data/lead_radar.sqlite"
+    SQLiteStore(store_path).update_signal_review(
+        run_id=run_id,
+        source=source,
+        source_id=source_id,
+        status=status,
+        note=note,
+    )
+    console.print(f"[green]Review saved:[/green] run={run_id} {source}:{source_id} status={status}")
+
+
+@app.command("review-summary")
+def review_summary(
+    run_id: Annotated[int | None, typer.Option("--run-id")] = None,
+    db_path: Annotated[str | None, typer.Option("--db-path")] = None,
+) -> None:
+    """Show reviewed-vs-useful counts for validation tracking."""
+    store_path = db_path or os.getenv("LEAD_RADAR_DB_PATH") or "data/lead_radar.sqlite"
+    summary = SQLiteStore(store_path).get_review_summary(run_id)
+    console.print(f"[bold]Review summary[/bold] db={store_path} run={run_id or 'all'}")
+    console.print(f"Total signals: {summary['total']}")
+    console.print(f"Reviewed: {summary['reviewed']}")
+    console.print(f"Positive: {summary['positive']}")
+    console.print(f"Positive rate: {summary['positive_rate']:.0%}")
+    for status, count in dict(summary["by_status"]).items():
+        console.print(f"- {status}: {count}")
+
+
 if __name__ == "__main__":
     app()

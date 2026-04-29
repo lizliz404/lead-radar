@@ -44,6 +44,7 @@ The MVP does not try to cover every platform, build a complex UI, or automate ou
 ```text
 README.md                  English overview and usage
 README.zh.md               Chinese overview and usage
+app.py                     Lightweight Streamlit review UI
 docs/PRD.md                Product requirements
 docs/ARCHITECTURE.md       Architecture notes
 config.example.yaml        Example topic configuration
@@ -85,6 +86,7 @@ Install with `uv`:
 
 ```bash
 uv sync --extra dev
+uv sync --extra ui
 ```
 
 Or with a standard virtual environment:
@@ -92,7 +94,7 @@ Or with a standard virtual environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e '.[dev,ui]'
 ```
 
 Copy local configuration:
@@ -107,6 +109,14 @@ Run with mock data:
 ```bash
 lead-radar run --config config.yaml --topic paid_demand_signals --mock
 ```
+
+Or open the lightweight Streamlit UI:
+
+```bash
+streamlit run app.py
+```
+
+The UI wraps the same pipeline as the CLI. It lets you select a topic, run mock or real Reddit scans, preview scored leads, and download CSV or Markdown output.
 
 Reports are written to:
 

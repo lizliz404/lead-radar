@@ -51,6 +51,8 @@ MVP 只回答一个问题：
 
 ```text
 README.md                  项目说明、定位、使用方式
+README.zh.md               中文项目说明
+app.py                     轻量 Streamlit 预览界面
 docs/PRD.md                产品需求文档
 docs/ARCHITECTURE.md       技术方案与架构决策
 config.example.yaml        MVP 主题配置示例
@@ -137,6 +139,7 @@ MVP 里 LLM 只需要做两件事：
 
 ```bash
 uv sync --extra dev
+uv sync --extra ui
 ```
 
 或者使用普通虚拟环境：
@@ -144,7 +147,7 @@ uv sync --extra dev
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e '.[dev,ui]'
 ```
 
 ### 6.2 复制配置
@@ -159,6 +162,14 @@ cp config.example.yaml config.yaml
 ```bash
 lead-radar run --config config.yaml --topic paid_demand_signals --mock
 ```
+
+也可以打开轻量 Streamlit 界面：
+
+```bash
+streamlit run app.py
+```
+
+这个 UI 不重写核心逻辑，只包现有 pipeline：选择 topic、运行 mock/真实 Reddit 扫描、预览线索、下载 CSV 或 Markdown 报告。
 
 输出文件会生成在：
 

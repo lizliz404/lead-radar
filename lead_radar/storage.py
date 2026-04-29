@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from lead_radar.models import LeadSignal, RawPost, ScanResult
@@ -78,10 +79,16 @@ class SQLiteStore:
                     pain_summary TEXT NOT NULL,
                     recommended_action TEXT NOT NULL,
                     tags_json TEXT NOT NULL,
+                    review_status TEXT NOT NULL DEFAULT 'new',
+                    review_note TEXT,
+                    reviewed_at TEXT,
                     FOREIGN KEY (run_id) REFERENCES scan_runs(id)
                 )
                 """
             )
+            self._ensure_column(conn, "signals", "review_status", "TEXT NOT NULL DEFAULT 'new'")
+            self._ensure_column(conn, "signals", "review_note", "TEXT")
+            self._ensure_column(conn, "signals", "reviewed_at", "TEXT")
 
     def save_scan_result(self, result: ScanResult) -> int:
         with self._connect() as conn:
@@ -125,6 +132,74 @@ class SQLiteStore:
                 """,
                 (status, json.dumps(channels, ensure_ascii=False), error, run_id),
             )
+
+    def update_signal_review(
+        self,
+        *,
+        run_id: int,
+        source: str,
+        source_id: str,
+        status: str,
+        note: str = "",
+    ) -> None:
+        reviewed_at = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE signals
+                SET review_status = ?,
+                    review_note = ?,
+                    reviewed_at = ?
+                WHERE run_id = ? AND source = ? AND source_id = ?
+                """,
+                (status, note.strip() or None, reviewed_at, run_id, source, source_id),
+            )
+
+    def get_signal_reviews(self, run_id: int) -> dict[tuple[str, str], dict[str, str | None]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT source, source_id, review_status, review_note, reviewed_at
+                FROM signals
+                WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchall()
+        return {
+            (source, source_id): {
+                "status": review_status,
+                "note": review_note,
+                "reviewed_at": reviewed_at,
+            }
+            for source, source_id, review_status, review_note, reviewed_at in rows
+        }
+
+    def get_review_summary(self, run_id: int | None = None) -> dict[str, object]:
+        where_clause = "WHERE run_id = ?" if run_id is not None else ""
+        params = (run_id,) if run_id is not None else ()
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT review_status, COUNT(*)
+                FROM signals
+                {where_clause}
+                GROUP BY review_status
+                ORDER BY review_status
+                """,
+                params,
+            ).fetchall()
+        by_status = {status: count for status, count in rows}
+        total = sum(by_status.values())
+        positive = sum(by_status.get(status, 0) for status in ("useful", "contacted", "replied", "converted"))
+        reviewed = total - by_status.get("new", 0)
+        return {
+            "run_id": run_id,
+            "total": total,
+            "reviewed": reviewed,
+            "positive": positive,
+            "positive_rate": positive / reviewed if reviewed else 0.0,
+            "by_status": by_status,
+        }
 
     def _ensure_column(
         self,
