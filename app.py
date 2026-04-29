@@ -526,6 +526,11 @@ def main() -> None:
     st.subheader("Describe the market you want to investigate")
     st.caption("One paragraph is enough. Mention users, pain, market, sources, timeframe, and how many posts/signals you want if you care.")
 
+    pending_example = st.session_state.pop("pending_example", None)
+    if pending_example:
+        st.session_state["brief"] = pending_example
+        apply_plan_to_session(heuristic_plan_from_brief(pending_example))
+
     brief = st.text_area(
         "Market / product brief",
         height=125,
@@ -542,8 +547,7 @@ def main() -> None:
         label_visibility="collapsed",
     )
     if example_choice != "Choose an example…" and st.button("Use selected example", use_container_width=True):
-        st.session_state["brief"] = example_choice
-        apply_plan_to_session(heuristic_plan_from_brief(example_choice))
+        st.session_state["pending_example"] = example_choice
         st.rerun()
 
     ai_configured = llm_is_configured()
