@@ -66,7 +66,7 @@ def run(
     )
 
     if llm_report:
-        markdown = LLMReportGenerator().generate(result.signals)
+        markdown = LLMReportGenerator().generate(result.signals, topic_config)
         console.print("[green]LLM generated strategic report[/green]")
     else:
         markdown = build_markdown_report(result, topic_config)
@@ -109,17 +109,17 @@ def load_mock_posts(path: str | Path = "examples/sample_posts.json") -> list[Raw
 
 
 def make_notification_summary(result: ScanResult, report_path: Path) -> str:
-    strong = sum(1 for item in result.signals if item.buying_intent == "strong")
+    strong = sum(1 for item in result.signals if item.signal_strength == "strong")
     lines = [
         f"Lead Radar: {result.topic_name}",
         f"Posts fetched: {result.total_posts}",
         f"Signals: {result.candidate_count}",
-        f"Strong intent: {strong}",
+        f"Strong signals: {strong}",
         f"Report: {report_path}",
         "",
     ]
     for index, signal in enumerate(result.signals[:5], start=1):
-        lines.append(f"{index}. [{signal.buying_intent}] {signal.post.title}")
+        lines.append(f"{index}. [{signal.signal_strength}] {signal.post.title}")
         lines.append(f"   score={signal.score} community={signal.post.community}")
         lines.append(f"   {signal.post.url}")
     return "\n".join(lines)

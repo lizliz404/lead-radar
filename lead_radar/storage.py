@@ -73,6 +73,7 @@ class SQLiteStore:
                     source TEXT NOT NULL,
                     source_id TEXT NOT NULL,
                     score REAL NOT NULL,
+                    signal_strength TEXT NOT NULL,
                     buying_intent TEXT NOT NULL,
                     confidence REAL NOT NULL,
                     evidence_json TEXT NOT NULL,
@@ -84,6 +85,22 @@ class SQLiteStore:
                     reviewed_at TEXT,
                     FOREIGN KEY (run_id) REFERENCES scan_runs(id)
                 )
+                """
+            )
+            self._ensure_column(conn, "signals", "signal_strength", "TEXT")
+            conn.execute(
+                """
+                UPDATE signals
+                SET signal_strength = buying_intent
+                WHERE signal_strength IS NULL OR signal_strength = ''
+                """
+            )
+            self._ensure_column(conn, "signals", "buying_intent", "TEXT")
+            conn.execute(
+                """
+                UPDATE signals
+                SET buying_intent = signal_strength
+                WHERE buying_intent IS NULL OR buying_intent = ''
                 """
             )
             self._ensure_column(conn, "signals", "review_status", "TEXT NOT NULL DEFAULT 'new'")
@@ -239,16 +256,17 @@ class SQLiteStore:
         conn.execute(
             """
             INSERT INTO signals (
-                run_id, source, source_id, score, buying_intent, confidence,
+                run_id, source, source_id, score, signal_strength, buying_intent, confidence,
                 evidence_json, pain_summary, recommended_action, tags_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
                 signal.post.source,
                 signal.post.source_id,
                 signal.score,
-                signal.buying_intent,
+                signal.signal_strength,
+                signal.signal_strength,
                 signal.confidence,
                 json.dumps(signal.evidence, ensure_ascii=False),
                 signal.pain_summary,

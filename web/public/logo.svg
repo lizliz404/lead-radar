@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc" style="color:#141413">
+  <title id="title">Lead Radar logo</title>
+  <desc id="desc">An editorial signal mark combining a radar scan, source node, extraction line, and evidence node.</desc>
+  <g fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M60 188V68A120 120 0 0 1 180 188"/>
+    <path d="M60 148A40 40 0 0 1 100 188" opacity=".9"/>
+    <path d="M60 108A80 80 0 0 1 140 188" opacity=".74"/>
+    <path d="M60 96H208"/>
+    <path d="M150 126H184" opacity=".72"/>
+    <path d="M184 88V164" opacity=".72"/>
+  </g>
+  <circle cx="60" cy="188" r="13" fill="currentColor"/>
+  <circle cx="148" cy="96" r="15" fill="#c76f3a"/>
+  <circle cx="108" cy="148" r="6" fill="currentColor" opacity=".74"/>
+</svg>

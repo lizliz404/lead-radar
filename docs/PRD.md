@@ -2,11 +2,17 @@
 
 ## 1. One-Line Product Definition
 
-Lead Radar is a code-first demand signal radar that scans public communities, finds posts with possible payment intent, outsourcing intent, strong pain, or product opportunity, and generates actionable lead reports.
+Lead Radar is a configurable public-signal radar that scans noisy online communities, finds source-linked opportunities, and generates action-oriented reports. Lead generation is the first preset, not the product boundary.
 
 ## 2. Background
 
-The initial concept was an AI social insight agent that accepted a request, fetched Reddit data, cleaned and analyzed it, then sent a report back. After review, the core value is not the orchestration tool. The value is reliable source coverage, search strategy, signal scoring, and action-oriented output.
+The initial concept was an AI social insight agent that accepted a request, fetched Reddit data, cleaned and analyzed it, then sent a report back. After review, the durable primitive is not Reddit lead generation. It is a reusable pipeline:
+
+```text
+source -> search/query -> filter/rank -> evidence card -> recommended action
+```
+
+Idea Hunt, Go Global, and Lead Radar are all presets on this same primitive. The core value is reliable source coverage, search strategy, profile-aware scoring, and action-oriented output.
 
 ## 3. Target Users
 
@@ -73,10 +79,12 @@ Future sources may include RSS, Hacker News, Product Hunt, GitHub Issues, and co
 
 ### Input
 
-Users define topics through YAML:
+Users define use-case presets through YAML:
 
 - topic name;
 - topic description;
+- `intent_profile` such as `lead`, `idea`, `distribution`, `competitor_pain`, or `alternative`;
+- `report_goal` for the human decision the report should support;
 - target subreddit list;
 - search keywords;
 - strong signal phrases;
@@ -91,7 +99,7 @@ Users define topics through YAML:
 - SQLite history.
 - Optional Telegram or Feishu notification.
 
-Each lead should include title, source, community, URL, score, buying intent, pain summary, evidence, recommended action, created time, upvotes, and comment count.
+Each report item should include title, source, community, URL, score, profile-specific signal strength, pain summary, evidence, recommended action, created time, upvotes, and comment count.
 
 ## 8. User Stories
 
@@ -136,6 +144,7 @@ MVP:
 - support YAML configuration;
 - support multiple topics;
 - support topic selection;
+- support use-case presets via `intent_profile` and `report_goal`;
 - return readable errors for missing configuration.
 
 Later:
@@ -167,6 +176,7 @@ MVP:
 - score include phrase hits;
 - penalize or remove exclude phrase hits;
 - score keyword hits in title and body;
+- support profile-specific phrase groups for lead, idea, distribution, competitor pain, and alternative-request use cases;
 - include comments, upvotes, and freshness;
 - output Top N.
 
@@ -182,7 +192,8 @@ MVP:
 
 - generate Markdown reports;
 - summarize fetched count, candidate count, and Top N;
-- include evidence and recommended action for each lead.
+- include evidence and recommended action for each report item;
+- adapt deterministic report headings, labels, and review questions to the topic's `intent_profile`.
 
 Later:
 
@@ -285,18 +296,21 @@ Deployment:
 
 ## 13. Risks and Constraints
 
-Data-source risk:
+Platform and abuse risk:
 
 - Reddit API limits and terms can change;
 - platform anti-scraping rules may affect availability;
-- additional platforms require compliant access.
+- additional platforms require compliant access;
+- growth-oriented presets can drift into spam, manipulation, or account-farm behavior if the boundary is not explicit.
 
 Mitigation:
 
 - use official APIs or authorized data sources;
 - run at low frequency;
 - avoid retaining unnecessary raw text;
-- keep source adapters pluggable.
+- keep source adapters pluggable;
+- do not automate private messages, comments, votes, account rotation, or ToS circumvention;
+- treat reports as human decision support, not an auto-acquisition machine.
 
 Quality risk:
 

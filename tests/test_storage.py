@@ -19,7 +19,7 @@ def make_signal() -> LeadSignal:
     return LeadSignal(
         post=post,
         score=18.0,
-        buying_intent="strong",
+        signal_strength="strong",
         confidence=0.8,
         evidence=["willing to pay"],
         pain_summary="User wants to save time finding qualified leads.",
@@ -110,3 +110,26 @@ def test_review_summary(tmp_path) -> None:
     assert summary["positive"] == 1
     assert summary["positive_rate"] == 1.0
     assert summary["by_status"] == {"contacted": 1}
+
+
+def test_signal_strength_column_is_written(tmp_path) -> None:
+    store = SQLiteStore(tmp_path / "lead_radar.sqlite")
+    signal = make_signal()
+    run_id = store.save_scan_result(
+        ScanResult(
+            topic_name="paid_demand_signals",
+            scanned_at=datetime.now(timezone.utc),
+            total_posts=1,
+            candidate_count=1,
+            signals=[signal],
+            report_path="reports/example.md",
+        )
+    )
+
+    with store._connect() as conn:
+        row = conn.execute(
+            "SELECT signal_strength, buying_intent FROM signals WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+
+    assert row == ("strong", "strong")

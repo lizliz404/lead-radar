@@ -60,6 +60,20 @@ DEFAULT_INTENT_PHRASES = [
 ]
 
 DEFAULT_EXCLUDE_PHRASES = ["course", "affiliate", "giveaway", "job posting", "hiring full-time"]
+INTENT_PROFILE_OPTIONS = {
+    "Lead / paid demand": "lead",
+    "Idea Hunt / product opportunity": "idea",
+    "Go Global / distribution": "distribution",
+    "Competitor pain": "competitor_pain",
+    "Alternative requests": "alternative",
+}
+REPORT_GOALS = {
+    "lead": "Identify source-linked paid demand that is worth human review or low-pressure outreach.",
+    "idea": "Identify pains that can be validated within 7 days before any product build.",
+    "distribution": "Identify safe, testable distribution angles without spam, vote manipulation, or account-farm tactics.",
+    "competitor_pain": "Identify repeated competitor weaknesses that can inform positioning, content, or product validation.",
+    "alternative": "Identify replacement criteria and switching context for positioning or product opportunity research.",
+}
 
 STOP_WORDS = {
     "about",
@@ -161,7 +175,7 @@ def run_scan(
     )
 
     if llm_report:
-        markdown = LLMReportGenerator().generate(result.signals)
+        markdown = LLMReportGenerator().generate(result.signals, topic_config)
     else:
         markdown = build_markdown_report(result, topic_config)
 
@@ -213,6 +227,7 @@ def build_custom_topic(
     must_include: str,
     exclude_phrases: str,
     include_phrases: str,
+    intent_profile: str,
     lookback_hours: int,
     max_posts_per_source: int,
     output_top_n: int,
@@ -225,6 +240,8 @@ def build_custom_topic(
     return TopicConfig(
         name=slugify_topic_name(brief),
         description=brief.strip(),
+        intent_profile=intent_profile,  # type: ignore[arg-type]
+        report_goal=REPORT_GOALS.get(intent_profile, REPORT_GOALS["lead"]),
         sources=SourcesConfig(reddit=RedditSourceConfig(subreddits=communities)),
         keywords=keywords,
         include_phrases=includes,
@@ -301,6 +318,7 @@ def initialize_custom_scan_state() -> None:
         "lookback_hours": 168,
         "output_top_n": 10,
         "max_posts_per_source": 25,
+        "intent_profile_label": "Lead / paid demand",
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -380,6 +398,8 @@ def render_example_carousel() -> None:
 def render_scan_plan(topic: TopicConfig) -> None:
     with st.expander("Generated scan plan", expanded=True):
         st.markdown(f"**Topic:** `{topic.name}`")
+        st.markdown(f"**Intent profile:** `{topic.intent_profile}`")
+        st.markdown(f"**Report goal:** {topic.report_goal}")
         communities = topic.sources.reddit.subreddits if topic.sources.reddit else []
         st.markdown(f"**Communities:** {', '.join(communities)}")
         st.markdown(f"**Keywords:** {', '.join(topic.keywords)}")
@@ -406,7 +426,7 @@ def signal_rows(
                 "community": post.community or "",
                 "score": signal.score,
                 "confidence": signal.confidence,
-                "buying_intent": signal.buying_intent,
+                "signal_strength": signal.signal_strength,
                 "upvotes": post.upvotes,
                 "comments": post.num_comments,
                 "created_at": post.created_at.isoformat(),
@@ -460,8 +480,8 @@ def render_lead_cards(
         current_note = review.get("note") or ""
         status_index = REVIEW_STATUSES.index(current_status) if current_status in REVIEW_STATUSES else 0
 
-        color = INTENT_COLORS.get(signal.buying_intent, "#adb5bd")
-        label = INTENT_LABELS.get(signal.buying_intent, signal.buying_intent)
+        color = INTENT_COLORS.get(signal.signal_strength, "#adb5bd")
+        label = INTENT_LABELS.get(signal.signal_strength, signal.signal_strength)
 
         with st.container(border=True):
             st.markdown(
@@ -582,6 +602,7 @@ def main() -> None:
         st.caption("AI scan-plan generation is not configured in this environment, so this demo uses a local heuristic parser.")
 
     with st.expander("Advanced scan parameters", expanded=False):
+        st.selectbox("Use case", list(INTENT_PROFILE_OPTIONS), key="intent_profile_label")
         st.text_input(
             "Target users / buyers",
             placeholder="Example: Shopify merchants, indie hackers, pet owners, consultants",
@@ -639,6 +660,7 @@ def main() -> None:
             must_include=st.session_state["must_include"],
             exclude_phrases=st.session_state["exclude_phrases"],
             include_phrases=st.session_state["include_phrases"],
+            intent_profile=INTENT_PROFILE_OPTIONS[st.session_state["intent_profile_label"]],
             lookback_hours=int(st.session_state["lookback_hours"]),
             max_posts_per_source=int(st.session_state["max_posts_per_source"]),
             output_top_n=int(st.session_state["output_top_n"]),
@@ -655,7 +677,7 @@ def main() -> None:
             2. Lead Radar turns that brief into a scan plan: keywords, intent phrases, communities, and filters.
             3. Collect mock data or real Reddit posts.
             4. Score demand signals with deterministic rules first; optionally rerank or write the report with an LLM.
-            5. Preview top leads, download CSV/Markdown, and mark which signals are actually useful.
+            5. Preview top signals, download CSV/Markdown, and mark which signals are actually useful.
             """
         )
 
@@ -690,8 +712,10 @@ def main() -> None:
         st.info("Run a scan to preview leads and export results.")
         return
 
-    strong = sum(1 for item in result.signals if item.buying_intent == "strong")
-    medium = sum(1 for item in result.signals if item.buying_intent == "medium")
+    strong = sum(1 for item in result.signals if item.signal_strength == "strong")
+    medium = sum(1 for item in result.signals if item.signal_strength == "medium")
+    strength_label = "Strong signals"
+    medium_label = "Medium signals"
     reviews = SQLiteStore(db_path).get_signal_reviews(int(run_id)) if run_id is not None else {}
     rows = signal_rows(result.signals, reviews)
     reviewed_count = sum(1 for item in reviews.values() if item.get("status") != "new")
@@ -699,8 +723,8 @@ def main() -> None:
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Posts fetched", result.total_posts)
     col2.metric("Signals", result.candidate_count)
-    col3.metric("Strong intent", strong)
-    col4.metric("Medium intent", medium)
+    col3.metric(strength_label, strong)
+    col4.metric(medium_label, medium)
     col5.metric("Reviewed", reviewed_count)
     st.caption(f"Run ID: {run_id} · Report path: {report_path}")
 
@@ -710,7 +734,7 @@ def main() -> None:
     else:
         st.info("No rows to preview.")
 
-    st.subheader("Top leads")
+    st.subheader("Top signals")
     render_lead_cards(result.signals, db_path=db_path, run_id=run_id, reviews=reviews)
 
     st.subheader("Exports")

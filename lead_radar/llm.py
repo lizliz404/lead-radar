@@ -16,10 +16,17 @@ def llm_is_configured() -> bool:
     )
 
 
-SUMMARY_REPORT_ORIGINAL_REQUEST = (
-    "Find whether users have demand for n8n workflow creation. Prioritize real business "
-    "implementation scenarios, preferably with clear willingness to pay."
-)
+def summary_report_original_request(topic: TopicConfig) -> str:
+    """Build the report request from the active topic instead of a hard-coded market."""
+
+    subreddits = topic.sources.reddit.subreddits if topic.sources.reddit else []
+    communities = ", ".join(subreddits) or "the configured communities"
+    keywords = ", ".join(topic.keywords[:8]) or "the configured keywords"
+    return (
+        f"Evaluate public Reddit demand for topic '{topic.name}': {topic.description}. "
+        f"Prioritize real business pain, buying intent, outsourcing intent, and repeated requests. "
+        f"Relevant communities: {communities}. Search language: {keywords}."
+    )
 
 SUMMARY_REPORT_SYSTEM_PROMPT = """You are a top-tier strategic analyst writing executive decision summaries.
 
@@ -107,7 +114,7 @@ class LLMReranker:
                 {
                     "id": self._signal_id(signal),
                     "rule_score": signal.score,
-                    "buying_intent": signal.buying_intent,
+                    "signal_strength": signal.signal_strength,
                     "community": post.community,
                     "title": post.title,
                     "body_excerpt": post.body[:1200],
@@ -268,7 +275,7 @@ class LLMReportGenerator:
         self.model = model or os.getenv("LEAD_RADAR_LLM_MODEL")
         self.timeout = timeout
 
-    def generate(self, signals: list[LeadSignal]) -> str:
+    def generate(self, signals: list[LeadSignal], topic: TopicConfig) -> str:
         if not self.api_key:
             raise RuntimeError("Missing LEAD_RADAR_LLM_API_KEY")
         if not self.base_url:
@@ -276,17 +283,17 @@ class LLMReportGenerator:
         if not self.model:
             raise RuntimeError("Missing LEAD_RADAR_LLM_MODEL")
 
-        payload = self._build_payload(signals)
+        payload = self._build_payload(signals, topic)
         return self._call(payload).strip()
 
-    def _build_payload(self, signals: list[LeadSignal]) -> dict[str, Any]:
+    def _build_payload(self, signals: list[LeadSignal], topic: TopicConfig) -> dict[str, Any]:
         analysis_data = "\n---\n".join(
             json.dumps(self._signal_to_analysis(signal), ensure_ascii=False)
             for signal in signals
         )
         user_prompt = (
             "Generate a report from the following original user request and analysis data.\n\n"
-            f"Original request:\n{SUMMARY_REPORT_ORIGINAL_REQUEST}\n\n"
+            f"Original request:\n{summary_report_original_request(topic)}\n\n"
             f"Analysis data:\n{analysis_data}"
         )
         return {
@@ -320,7 +327,7 @@ class LLMReportGenerator:
             "url": post.url,
             "score": signal.score,
             "confidence": signal.confidence,
-            "buying_intent": signal.buying_intent,
+            "signal_strength": signal.signal_strength,
             "pain_summary": signal.pain_summary,
             "recommended_action": signal.recommended_action,
             "evidence": signal.evidence,

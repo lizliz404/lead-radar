@@ -32,6 +32,7 @@ def test_strong_buying_signal_scores_high() -> None:
     signal = score_post(post, topic)
 
     assert signal.score > 10
+    assert signal.signal_strength == "strong"
     assert signal.buying_intent == "strong"
     assert "buying_intent" in signal.tags
 
@@ -53,3 +54,31 @@ def test_excluded_promotional_post_is_penalized() -> None:
     signals = score_posts([post], topic)
 
     assert signals == [] or signals[0].score < 5
+
+
+def test_idea_profile_scores_idea_signals_without_buying_language() -> None:
+    topic = TopicConfig(
+        name="idea_test",
+        intent_profile="idea",
+        keywords=["is there a tool"],
+        include_phrases=["i wish there was"],
+        output_top_n=5,
+    )
+    post = RawPost(
+        source="reddit",
+        source_id="3",
+        url="https://example.com/3",
+        title="Is there a tool for messy client handoff notes?",
+        body="I wish there was something less manual. Current tools are frustrating and limited.",
+        community="SaaS",
+        created_at=datetime.now(timezone.utc),
+        upvotes=3,
+        num_comments=2,
+    )
+
+    signal = score_post(post, topic)
+
+    assert signal.score > 8
+    assert signal.signal_strength == "strong"
+    assert "idea_signal" in signal.tags
+    assert "7-day validation test" in signal.recommended_action

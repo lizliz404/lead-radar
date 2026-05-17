@@ -6,9 +6,10 @@ Lead Radar follows five architecture principles:
 
 1. Code first: core logic must be testable, versioned, and portable.
 2. Pluggable sources: Reddit is the MVP source, not a permanent platform lock-in.
-3. Rules before LLMs: broad data is filtered by deterministic rules before any LLM call.
-4. Evidence loop: every useful insight must point back to an original source URL.
-5. Low operational cost: the MVP should run from a local CLI, cron, GitHub Actions, or a small server.
+3. Presets over rewrites: Lead Radar, Idea Hunt, Go Global, competitor pain, and alternative-request workflows should reuse the same core pipeline with different topic presets, scoring profiles, and report goals.
+4. Rules before LLMs: broad data is filtered by deterministic rules before any LLM call.
+5. Evidence loop: every useful insight must point back to an original source URL.
+6. Low operational cost: the MVP should run from a local CLI, cron, GitHub Actions, or a small server.
 
 ## 2. Modules
 
@@ -28,7 +29,7 @@ lead_radar/
 
 ### Config
 
-Loads `config.yaml`, validates topics, and provides structured settings to the rest of the pipeline.
+Loads `config.yaml`, validates topics, and provides structured settings to the rest of the pipeline. A topic is a use-case preset: it can select an `intent_profile` and `report_goal` without changing collectors, storage, notifications, or the core scoring flow.
 
 ### Collector
 
@@ -36,7 +37,7 @@ Fetches posts from Reddit or mock data and normalizes them into `RawPost`. It sh
 
 ### Scorer
 
-Scores posts against topic rules, returns `LeadSignal`, keeps evidence, and controls the Top N candidate set.
+Scores posts against topic rules and the selected `intent_profile`, returns `LeadSignal`, keeps evidence, and controls the Top N candidate set. The same model field `buying_intent` is currently reused as a generic strength label for non-lead profiles to avoid a schema migration in this small abstraction pass.
 
 ### LLM
 
@@ -107,6 +108,22 @@ all posts -> rule filter -> Top N candidates -> optional LLM analysis
 
 ## 6. Extension Points
 
+### Use-Case Presets
+
+The stable core is:
+
+```text
+Source adapters -> Topic presets -> Rule scoring -> Optional LLM rerank -> Evidence-linked report -> Review feedback -> Scheduled run
+```
+
+Current presets should be configuration-level variants, not separate products or forks:
+
+- `paid_demand_signals`: Lead Radar / sales-lead review.
+- `saas_idea_hunt`: Idea Hunt / product opportunity validation.
+- `go_global_distribution`: Go Global / safe distribution experiment discovery.
+- `competitor_pain`: competitor complaint and switching-trigger monitoring.
+- `alternative_requests`: replacement-demand and positioning research.
+
 ### New Sources
 
 Add a new source adapter that returns `list[RawPost]`. Candidate sources include RSS, Hacker News, Product Hunt, GitHub Issues, and compliant APIs for other public platforms.
@@ -145,8 +162,8 @@ cron/systemd timer -> CLI -> SQLite -> notification
 - Do not commit `.env`.
 - Avoid retaining unnecessary personal data.
 - Respect platform deletion, retention, and API rules.
-- Do not automate spam, harassment, or bulk private outreach.
-- Treat reports as human decision support.
+- Do not automate spam, harassment, bulk private outreach, account rotation, vote manipulation, or ToS circumvention.
+- Treat reports as human decision support, not automatic acquisition or growth hacking execution.
 
 ## 9. Upgrade Criteria
 

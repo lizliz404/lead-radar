@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-BuyingIntent = Literal["strong", "medium", "weak", "none"]
+SignalStrength = Literal["strong", "medium", "weak", "none"]
+BuyingIntent = SignalStrength
+IntentProfile = Literal["lead", "idea", "distribution", "competitor_pain", "alternative"]
 
 
 class RedditSourceConfig(BaseModel):
@@ -25,6 +27,8 @@ class SourcesConfig(BaseModel):
 class TopicConfig(BaseModel):
     name: str
     description: str = ""
+    intent_profile: IntentProfile = "lead"
+    report_goal: str = "Find source-linked opportunities and recommend the next human review action."
     sources: SourcesConfig = Field(default_factory=SourcesConfig)
     keywords: list[str] = Field(default_factory=list)
     include_phrases: list[str] = Field(default_factory=list)
@@ -90,12 +94,24 @@ class RawPost(BaseModel):
 class LeadSignal(BaseModel):
     post: RawPost
     score: float
-    buying_intent: BuyingIntent
+    signal_strength: SignalStrength
     confidence: float = Field(ge=0, le=1)
     evidence: list[str] = Field(default_factory=list)
     pain_summary: str
     recommended_action: str
     tags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_buying_intent(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "signal_strength" not in data and "buying_intent" in data:
+            data = {**data, "signal_strength": data["buying_intent"]}
+        return data
+
+    @property
+    def buying_intent(self) -> SignalStrength:
+        """Backward-compatible alias for older lead-only code and stored reports."""
+        return self.signal_strength
 
 
 class ScanResult(BaseModel):

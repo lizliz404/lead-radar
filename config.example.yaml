@@ -1,6 +1,8 @@
 topics:
   - name: paid_demand_signals
     description: Find public community posts with payment, outsourcing, procurement, or strong help-seeking intent.
+    intent_profile: lead
+    report_goal: Identify source-linked paid demand that is worth human review or low-pressure outreach.
     sources:
       reddit:
         subreddits:
@@ -45,5 +47,165 @@ topics:
     lookback_hours: 72
     max_posts_per_source: 30
     min_comments: 0
+    min_upvotes: 0
+    output_top_n: 10
+
+  - name: saas_idea_hunt
+    description: Find repeated SaaS idea signals from public complaints, workaround requests, and unmet tool needs.
+    intent_profile: idea
+    report_goal: Identify pains that can be validated within 7 days before any product build.
+    sources:
+      reddit:
+        subreddits:
+          - SaaS
+          - startups
+          - entrepreneur
+          - smallbusiness
+          - productivity
+          - selfhosted
+    keywords:
+      - "is there a tool"
+      - "looking for a tool"
+      - "alternative to"
+      - "i wish there was"
+      - "manual workaround"
+      - "too expensive"
+      - "missing feature"
+    include_phrases:
+      - "i wish there was"
+      - "does anyone know a tool"
+      - "looking for a tool"
+      - "alternative to"
+      - "would pay for"
+      - "manual workaround"
+      - "nothing works"
+    exclude_phrases:
+      - "launching my"
+      - "promo code"
+      - "affiliate"
+      - "sponsored"
+      - "giveaway"
+    lookback_hours: 168
+    max_posts_per_source: 30
+    min_comments: 1
+    min_upvotes: 0
+    output_top_n: 10
+
+  - name: go_global_distribution
+    description: Find public distribution, acquisition, and channel-opportunity signals for global-facing products.
+    intent_profile: distribution
+    report_goal: Identify safe, testable distribution angles without spam, vote manipulation, or account-farm tactics.
+    sources:
+      reddit:
+        subreddits:
+          - SaaS
+          - startups
+          - entrepreneur
+          - marketing
+          - growthhacking
+          - indiehackers
+    keywords:
+      - "where do you promote"
+      - "best channels"
+      - "growth channel"
+      - "traffic source"
+      - "how do you get users"
+      - "subreddit recommendations"
+      - "communities for"
+    include_phrases:
+      - "what worked"
+      - "where should i"
+      - "best channels"
+      - "growth channel"
+      - "traffic source"
+      - "community recommendations"
+    exclude_phrases:
+      - "buy upvotes"
+      - "account farm"
+      - "mass dm"
+      - "scrape emails"
+      - "blackhat"
+    lookback_hours: 168
+    max_posts_per_source: 30
+    min_comments: 1
+    min_upvotes: 0
+    output_top_n: 10
+
+  - name: competitor_pain
+    description: Find complaints, switching triggers, and unmet needs around incumbents or competitor categories.
+    intent_profile: competitor_pain
+    report_goal: Identify repeated competitor weaknesses that can inform positioning, content, or product validation.
+    sources:
+      reddit:
+        subreddits:
+          - SaaS
+          - smallbusiness
+          - selfhosted
+          - productivity
+          - sysadmin
+    keywords:
+      - "alternative to"
+      - "switching from"
+      - "too expensive"
+      - "poor support"
+      - "missing feature"
+      - "keeps breaking"
+      - "vendor lock-in"
+    include_phrases:
+      - "alternative to"
+      - "switching from"
+      - "migrating away"
+      - "too expensive"
+      - "poor support"
+      - "missing feature"
+      - "keeps breaking"
+    exclude_phrases:
+      - "i built"
+      - "launching"
+      - "sponsored"
+      - "affiliate"
+      - "hiring"
+    lookback_hours: 168
+    max_posts_per_source: 30
+    min_comments: 1
+    min_upvotes: 0
+    output_top_n: 10
+
+  - name: alternative_requests
+    description: Find explicit requests for cheaper, self-hosted, privacy-friendly, or simpler alternatives to existing tools.
+    intent_profile: alternative
+    report_goal: Identify replacement criteria and switching context for positioning or product opportunity research.
+    sources:
+      reddit:
+        subreddits:
+          - selfhosted
+          - opensource
+          - SaaS
+          - productivity
+          - smallbusiness
+    keywords:
+      - "alternative to"
+      - "open source alternative"
+      - "cheaper alternative"
+      - "self-hosted alternative"
+      - "replace"
+      - "switch from"
+      - "similar to"
+    include_phrases:
+      - "alternative to"
+      - "open source alternative"
+      - "cheaper alternative"
+      - "self-hosted alternative"
+      - "what do you use"
+      - "any recommendations"
+    exclude_phrases:
+      - "show hn"
+      - "i made"
+      - "launching"
+      - "affiliate"
+      - "promo"
+    lookback_hours: 168
+    max_posts_per_source: 30
+    min_comments: 1
     min_upvotes: 0
     output_top_n: 10
