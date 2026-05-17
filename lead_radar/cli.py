@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -11,12 +9,9 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from lead_radar.config import load_config
-from lead_radar.llm import LLMReportGenerator, LLMReranker
-from lead_radar.models import RawPost, ScanResult
+from lead_radar.models import ScanResult
 from lead_radar.notifier import NotificationPayload, resolve_notify_channels, send_notifications
-from lead_radar.reddit import RedditClient
-from lead_radar.report import build_markdown_report, write_report
-from lead_radar.scoring import score_posts
+from lead_radar.service import run_scan
 from lead_radar.storage import SQLiteStore
 
 app = typer.Typer(help="Lead Radar: social demand signal radar")
@@ -40,46 +35,31 @@ def run(
     """Run one scan and generate a Markdown report."""
 
     load_dotenv()
-    app_config = load_config(config)
-    topic_config = app_config.get_topic(topic)
+    store_path = db_path or os.getenv("LEAD_RADAR_DB_PATH") or "data/lead_radar.sqlite"
+    result, markdown, run_id = run_scan(
+        config_path=config,
+        topic_name=topic,
+        mock=mock,
+        output_dir=output_dir,
+        db_path=store_path,
+        llm_rerank=llm_rerank,
+        llm_report=llm_report,
+        llm_candidate_limit=llm_candidate_limit,
+    )
+    report_path = Path(result.report_path or "")
 
     if mock:
-        posts = load_mock_posts()
-        console.print(f"[yellow]Loaded {len(posts)} mock posts[/yellow]")
+        console.print(f"[yellow]Loaded {result.total_posts} mock posts[/yellow]")
     else:
-        reddit = RedditClient()
-        posts = reddit.search_topic(topic_config)
-        console.print(f"[green]Fetched {len(posts)} Reddit posts[/green]")
-
-    rule_limit = llm_candidate_limit if llm_rerank else None
-    signals = score_posts(posts, topic_config, limit=rule_limit)
+        console.print(f"[green]Fetched {result.total_posts} Reddit posts[/green]")
     if llm_rerank:
-        signals = LLMReranker().rerank(signals, topic_config)
-        console.print(f"[green]LLM reranked signals:[/green] {len(signals)}")
-
-    result = ScanResult(
-        topic_name=topic_config.name,
-        scanned_at=datetime.now(timezone.utc),
-        total_posts=len(posts),
-        candidate_count=len(signals),
-        signals=signals,
-    )
-
+        console.print(f"[green]LLM reranked signals:[/green] {len(result.signals)}")
     if llm_report:
-        markdown = LLMReportGenerator().generate(result.signals, topic_config)
         console.print("[green]LLM generated strategic report[/green]")
-    else:
-        markdown = build_markdown_report(result, topic_config)
-    report_path = write_report(markdown, output_dir=output_dir, topic_name=topic_config.name)
-    result.report_path = str(report_path)
-
-    store_path = db_path or os.getenv("LEAD_RADAR_DB_PATH") or "data/lead_radar.sqlite"
-    store = SQLiteStore(store_path)
-    run_id = store.save_scan_result(result)
 
     console.print(f"[bold green]Report written:[/bold green] {report_path}")
     console.print(f"[bold green]SQLite run id:[/bold green] {run_id}")
-    console.print(f"[bold green]Signals:[/bold green] {len(signals)}")
+    console.print(f"[bold green]Signals:[/bold green] {len(result.signals)}")
 
     notify_channels = resolve_notify_channels(
         notify,
@@ -92,20 +72,17 @@ def run(
         try:
             send_notifications(notify_channels, payload)
         except Exception as exc:
-            store.update_notification_status(
+            assert run_id is not None
+            SQLiteStore(store_path).update_notification_status(
                 run_id,
                 status="failed",
                 channels=notify_channels,
                 error=str(exc),
             )
             raise
-        store.update_notification_status(run_id, status="sent", channels=notify_channels)
+        assert run_id is not None
+        SQLiteStore(store_path).update_notification_status(run_id, status="sent", channels=notify_channels)
         console.print(f"[bold green]Notifications sent:[/bold green] {', '.join(notify_channels)}")
-
-
-def load_mock_posts(path: str | Path = "examples/sample_posts.json") -> list[RawPost]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [RawPost.model_validate(item) for item in payload]
 
 
 def make_notification_summary(result: ScanResult, report_path: Path) -> str:

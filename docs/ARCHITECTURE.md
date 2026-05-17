@@ -15,6 +15,8 @@ Lead Radar follows five architecture principles:
 
 ```text
 lead_radar/
+  api.py          FastAPI JSON API and OpenAPI contract
+  service.py      shared scan orchestration used by API and CLI
   cli.py          CLI entrypoint
   config.py       YAML configuration loading and validation
   models.py       Pydantic data models
@@ -31,13 +33,21 @@ lead_radar/
 
 Loads `config.yaml`, validates topics, and provides structured settings to the rest of the pipeline. A topic is a use-case preset: it can select an `intent_profile` and `report_goal` without changing collectors, storage, notifications, or the core scoring flow.
 
+### API
+
+FastAPI is the long-term backend boundary for the product. It exposes health checks, topic metadata, scan execution, review updates, and OpenAPI docs while reusing the same Python core as the CLI.
+
+### Service
+
+`service.py` owns scan orchestration: load config, collect posts, score, optionally rerank/report with an LLM, write Markdown, and persist to SQLite. Both FastAPI and CLI call this layer so business logic does not drift between interfaces.
+
 ### Collector
 
 Fetches posts from Reddit or mock data and normalizes them into `RawPost`. It should not make business judgments.
 
 ### Scorer
 
-Scores posts against topic rules and the selected `intent_profile`, returns `LeadSignal`, keeps evidence, and controls the Top N candidate set. The same model field `buying_intent` is currently reused as a generic strength label for non-lead profiles to avoid a schema migration in this small abstraction pass.
+Scores posts against topic rules and the selected `intent_profile`, returns `LeadSignal`, keeps evidence, and controls the Top N candidate set. `signal_strength` is the canonical strength field. `buying_intent` remains only as a backward-compatible alias for old lead-only callers and SQLite rows.
 
 ### LLM
 
@@ -58,15 +68,15 @@ Sends report output to Telegram or Feishu. Telegram can send the full Markdown r
 ## 3. Data Flow
 
 ```text
-1. User runs the CLI
-2. CLI loads config.yaml
-3. CLI selects a topic
+1. Next.js or an operator calls FastAPI, or an operator runs the CLI
+2. API/CLI calls the shared service layer
+3. Service loads config.yaml and selects a topic
 4. Collector fetches RawPost items
 5. Scorer filters, scores, and sorts posts
 6. Optional LLM reranker reorders the candidate set
 7. Deterministic report builder or LLM report generator writes Markdown
 8. Storage writes SQLite history
-9. Notifier optionally sends Telegram or Feishu messages
+9. API returns JSON / CLI prints output / notifier optionally sends Telegram or Feishu messages
 ```
 
 ## 4. Why Not Send Everything to an LLM
@@ -99,7 +109,8 @@ all posts -> rule filter -> Top N candidates -> optional LLM analysis
 
 - `post`
 - `score`
-- `buying_intent`
+- `signal_strength`
+- `buying_intent` compatibility alias
 - `confidence`
 - `evidence`
 - `pain_summary`
@@ -137,6 +148,14 @@ Keep LLM analysis downstream of rule scoring. Recommended outputs include pain c
 The notification layer can support additional webhooks, email, Slack, Discord, or interactive cards without changing the scoring pipeline.
 
 ## 7. Deployment Options
+
+FastAPI service:
+
+```bash
+uvicorn lead_radar.api:app --host 0.0.0.0 --port 8000
+```
+
+Docker deploys the FastAPI service by default. Streamlit is optional legacy/operator UI, not the public product path.
 
 Local manual run:
 
