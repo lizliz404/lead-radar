@@ -13,6 +13,9 @@ topics:
           - Zapier
           - NoCode
           - selfhosted
+      hacker_news:
+        enabled: true
+        tags: story,comment
     keywords:
       - "need automation"
       - "automate my workflow"
@@ -63,6 +66,9 @@ topics:
           - smallbusiness
           - productivity
           - selfhosted
+      hacker_news:
+        enabled: true
+        tags: story,comment
     keywords:
       - "is there a tool"
       - "looking for a tool"

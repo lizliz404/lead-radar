@@ -8,9 +8,9 @@ from pathlib import Path
 from lead_radar.config import load_config
 from lead_radar.llm import LLMReportGenerator, LLMReranker
 from lead_radar.models import RawPost, ScanResult, TopicConfig
-from lead_radar.reddit import RedditClient
 from lead_radar.report import build_markdown_report, write_report
 from lead_radar.scoring import score_posts
+from lead_radar.sources import fetch_topic_posts
 from lead_radar.storage import SQLiteStore
 
 
@@ -59,7 +59,7 @@ def run_topic_scan(
     llm_candidate_limit: int = 20,
     persist: bool = True,
 ) -> tuple[ScanResult, str, int | None]:
-    posts = load_mock_posts(mock_posts_path) if mock else RedditClient().search_topic(topic_config)
+    posts = load_mock_posts(mock_posts_path) if mock else fetch_topic_posts(topic_config)
 
     rule_limit = llm_candidate_limit if llm_rerank else None
     signals = score_posts(posts, topic_config, limit=rule_limit)

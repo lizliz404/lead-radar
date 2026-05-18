@@ -184,6 +184,10 @@ def score_post(post: RawPost, topic: TopicConfig) -> LeadSignal:
         score += 1.5
         tags.append("high_relevance_source")
 
+    if post.source == "hacker_news":
+        score += 0.8
+        tags.append("hn_source")
+
     score += min(math.log1p(max(post.num_comments, 0)), 3)
     score += min(math.log1p(max(post.upvotes, 0)) / 2, 2)
 

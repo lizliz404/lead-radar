@@ -29,7 +29,7 @@ This keeps the product boundary clean: Next.js owns presentation and SEO, FastAP
 
 - Python core
   - Tech: library modules under `lead_radar/`
-  - Purpose: Reddit adapter, scoring profiles, report generation, LLM rerank/report, SQLite storage
+  - Purpose: source adapters, third-party alert ingest, scoring profiles, report generation, LLM rerank/report, SQLite storage
   - Used by: FastAPI and CLI
 
 - Optional Streamlit operator UI
@@ -53,6 +53,8 @@ Key routes:
 - `GET /health`
 - `GET /topics?config_path=config.yaml`
 - `POST /scan`
+- `POST /ingest/alerts`
+- `POST /ingest/score`
 - `POST /reviews`
 - `GET /reviews/summary`
 - `GET /docs` for Swagger/OpenAPI
@@ -70,6 +72,59 @@ curl -sS http://localhost:8000/scan \
     "persist": false
   }'
 ```
+
+Example third-party alert ingest:
+
+```bash
+curl -sS http://localhost:8000/ingest/alerts \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ***' \
+  -d '{
+    "batch_name": "f5bot-example",
+    "alerts": [
+      {
+        "source": "f5bot",
+        "source_id": "alert-1",
+        "url": "https://news.ycombinator.com/item?id=1",
+        "title": "Need a better monitoring workflow",
+        "body": "Looking for a tool because this manual workflow is tedious.",
+        "community": "hacker_news",
+        "topic_name": "saas_idea_hunt",
+        "tags": ["vendor:f5bot"]
+      }
+    ]
+  }'
+```
+
+Score already-ingested alerts through the API:
+
+```bash
+curl -sS http://localhost:8000/ingest/score \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ***' \
+  -d '{
+    "config_path": "config.example.yaml",
+    "topic": "saas_idea_hunt",
+    "db_path": "data/lead_radar.sqlite",
+    "output_dir": "reports",
+    "sources": ["f5bot"],
+    "limit": 200
+  }'
+```
+
+Score already-ingested alerts from cron/systemd/GitHub Actions without HTTP:
+
+```bash
+lead-radar score-ingested \
+  --config config.example.yaml \
+  --topic saas_idea_hunt \
+  --db-path data/lead_radar.sqlite \
+  --output-dir reports \
+  --source f5bot \
+  --limit 200
+```
+
+`/ingest/alerts` and `score-ingested` are the preferred integration boundary for F5Bot, Syften, Octolens, Zapier, n8n, and similar vendors. Vendor payloads should be mapped into the generic alert shape before entering scoring; do not create vendor-specific scoring/report paths.
 
 If `LEAD_RADAR_API_TOKEN` is set, state-changing endpoints require:
 
@@ -174,11 +229,13 @@ python scripts/check_reddit_credentials.py
 
 ## Environment variables
 
-Minimum for real data:
+Minimum for real Reddit data:
 
 - `REDDIT_CLIENT_ID`
 - `REDDIT_CLIENT_SECRET`
 - `REDDIT_USER_AGENT`
+
+Native Hacker News search does not require credentials. Third-party alert ingest does not require vendor credentials when vendors call `/ingest/alerts` or an external automation maps payloads into that endpoint.
 
 Minimum for public API exposure:
 

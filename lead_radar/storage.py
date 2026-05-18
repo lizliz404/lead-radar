@@ -107,6 +107,52 @@ class SQLiteStore:
             self._ensure_column(conn, "signals", "review_note", "TEXT")
             self._ensure_column(conn, "signals", "reviewed_at", "TEXT")
 
+    def upsert_ingested_posts(self, posts: list[RawPost]) -> tuple[int, int]:
+        inserted = 0
+        updated = 0
+        with self._connect() as conn:
+            for post in posts:
+                existed = self._post_exists(conn, post)
+                self._upsert_post(conn, post)
+                if existed:
+                    updated += 1
+                else:
+                    inserted += 1
+        return inserted, updated
+
+    def list_posts(
+        self,
+        *,
+        sources: list[str] | None = None,
+        topic_name: str | None = None,
+        limit: int = 200,
+    ) -> list[RawPost]:
+        where_clauses: list[str] = []
+        params: list[object] = []
+        if sources:
+            placeholders = ", ".join("?" for _ in sources)
+            where_clauses.append(f"source IN ({placeholders})")
+            params.extend(sources)
+        if topic_name:
+            where_clauses.append("raw_json LIKE ?")
+            params.append(f'%"topic_name": "{topic_name}"%')
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT source, source_id, url, title, body, author, community,
+                       created_at, upvotes, num_comments, raw_json
+                FROM posts
+                {where_sql}
+                ORDER BY datetime(created_at) DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        return [self._row_to_post(row) for row in rows]
+
     def save_scan_result(self, result: ScanResult) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
@@ -228,6 +274,45 @@ class SQLiteStore:
         columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")}
         if column_name not in columns:
             conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
+    def _post_exists(self, conn: sqlite3.Connection, post: RawPost) -> bool:
+        row = conn.execute(
+            "SELECT 1 FROM posts WHERE source = ? AND source_id = ?",
+            (post.source, post.source_id),
+        ).fetchone()
+        return row is not None
+
+    def _row_to_post(self, row: sqlite3.Row | tuple) -> RawPost:
+        (
+            source,
+            source_id,
+            url,
+            title,
+            body,
+            author,
+            community,
+            created_at,
+            upvotes,
+            num_comments,
+            raw_json,
+        ) = row
+        try:
+            raw = json.loads(raw_json or "{}")
+        except json.JSONDecodeError:
+            raw = {}
+        return RawPost(
+            source=source,
+            source_id=source_id,
+            url=url,
+            title=title,
+            body=body or "",
+            author=author,
+            community=community,
+            created_at=created_at,
+            upvotes=upvotes,
+            num_comments=num_comments,
+            raw=raw,
+        )
 
     def _upsert_post(self, conn: sqlite3.Connection, post: RawPost) -> None:
         conn.execute(

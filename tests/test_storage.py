@@ -133,3 +133,50 @@ def test_signal_strength_column_is_written(tmp_path) -> None:
         ).fetchone()
 
     assert row == ("strong", "strong")
+
+
+def test_upsert_ingested_posts_counts_inserted_and_updated(tmp_path) -> None:
+    store = SQLiteStore(tmp_path / "lead_radar.sqlite")
+    post = make_signal().post
+
+    assert store.upsert_ingested_posts([post]) == (1, 0)
+    assert store.upsert_ingested_posts([post.model_copy(update={"title": "Updated"})]) == (0, 1)
+
+    with store._connect() as conn:
+        row = conn.execute(
+            "SELECT title FROM posts WHERE source = ? AND source_id = ?",
+            (post.source, post.source_id),
+        ).fetchone()
+
+    assert row == ("Updated",)
+
+
+def test_list_posts_filters_by_source_and_topic_name(tmp_path) -> None:
+    store = SQLiteStore(tmp_path / "lead_radar.sqlite")
+    signal = make_signal()
+    matching = signal.post.model_copy(
+        update={
+            "source": "f5bot",
+            "source_id": "match",
+            "raw": {"topic_name": "saas_idea_hunt"},
+        }
+    )
+    other_source = signal.post.model_copy(
+        update={
+            "source": "syften",
+            "source_id": "other-source",
+            "raw": {"topic_name": "saas_idea_hunt"},
+        }
+    )
+    other_topic = signal.post.model_copy(
+        update={
+            "source": "f5bot",
+            "source_id": "other-topic",
+            "raw": {"topic_name": "paid_demand_signals"},
+        }
+    )
+    store.upsert_ingested_posts([matching, other_source, other_topic])
+
+    posts = store.list_posts(sources=["f5bot"], topic_name="saas_idea_hunt")
+
+    assert [(post.source, post.source_id) for post in posts] == [("f5bot", "match")]

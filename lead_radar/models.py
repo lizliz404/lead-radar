@@ -20,8 +20,14 @@ class RedditSourceConfig(BaseModel):
         return [item.strip().removeprefix("r/") for item in value if item.strip()]
 
 
+class HackerNewsSourceConfig(BaseModel):
+    enabled: bool = True
+    tags: str = "story,comment"
+
+
 class SourcesConfig(BaseModel):
     reddit: RedditSourceConfig | None = None
+    hacker_news: HackerNewsSourceConfig | None = None
 
 
 class TopicConfig(BaseModel):
@@ -112,6 +118,50 @@ class LeadSignal(BaseModel):
     def buying_intent(self) -> SignalStrength:
         """Backward-compatible alias for older lead-only code and stored reports."""
         return self.signal_strength
+
+
+class IngestedAlert(BaseModel):
+    source: str
+    source_id: str
+    url: str
+    title: str
+    body: str = ""
+    author: str | None = None
+    community: str | None = None
+    created_at: datetime | None = None
+    upvotes: int = 0
+    num_comments: int = 0
+    topic_name: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    raw: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("source", "source_id", "url", "title")
+    @classmethod
+    def strip_required_strings(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value must not be empty")
+        return stripped
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_tags(cls, value: list[str]) -> list[str]:
+        return [item.strip() for item in value if item.strip()]
+
+    def to_raw_post(self) -> RawPost:
+        return RawPost(
+            source=self.source,
+            source_id=self.source_id,
+            url=self.url,
+            title=self.title,
+            body=self.body,
+            author=self.author,
+            community=self.community,
+            created_at=self.created_at or datetime.now(timezone.utc),
+            upvotes=self.upvotes,
+            num_comments=self.num_comments,
+            raw={**self.raw, "ingest_tags": self.tags, "topic_name": self.topic_name},
+        )
 
 
 class ScanResult(BaseModel):

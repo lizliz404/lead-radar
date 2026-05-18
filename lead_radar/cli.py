@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from lead_radar.config import load_config
+from lead_radar.ingest import score_ingested_posts
 from lead_radar.models import ScanResult
 from lead_radar.notifier import NotificationPayload, resolve_notify_channels, send_notifications
 from lead_radar.service import run_scan
@@ -51,7 +52,7 @@ def run(
     if mock:
         console.print(f"[yellow]Loaded {result.total_posts} mock posts[/yellow]")
     else:
-        console.print(f"[green]Fetched {result.total_posts} Reddit posts[/green]")
+        console.print(f"[green]Fetched {result.total_posts} posts[/green]")
     if llm_rerank:
         console.print(f"[green]LLM reranked signals:[/green] {len(result.signals)}")
     if llm_report:
@@ -110,6 +111,33 @@ def list_topics(
     app_config = load_config(config)
     for item in app_config.topics:
         console.print(f"[bold]{item.name}[/bold] - {item.description}")
+
+
+@app.command("score-ingested")
+def score_ingested(
+    config: Annotated[str, typer.Option("--config", "-c")] = "config.yaml",
+    topic: Annotated[str, typer.Option("--topic", "-t")] = "paid_demand_signals",
+    output_dir: Annotated[str, typer.Option("--output-dir", "-o")] = "reports",
+    db_path: Annotated[str | None, typer.Option("--db-path")] = None,
+    source: Annotated[list[str] | None, typer.Option("--source")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=1000)] = 200,
+) -> None:
+    """Score already-ingested third-party alerts and generate a normal report."""
+    load_dotenv()
+    store_path = db_path or os.getenv("LEAD_RADAR_DB_PATH") or "data/lead_radar.sqlite"
+    sources = source or None
+    result, _markdown, run_id = score_ingested_posts(
+        config_path=config,
+        topic_name=topic,
+        db_path=store_path,
+        output_dir=output_dir,
+        sources=sources,
+        limit=limit,
+    )
+    console.print(f"[bold green]Ingested posts scored:[/bold green] {result.total_posts}")
+    console.print(f"[bold green]Report written:[/bold green] {result.report_path}")
+    console.print(f"[bold green]SQLite run id:[/bold green] {run_id}")
+    console.print(f"[bold green]Signals:[/bold green] {len(result.signals)}")
 
 
 @app.command("review")

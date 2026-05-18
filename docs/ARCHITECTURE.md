@@ -20,7 +20,9 @@ lead_radar/
   cli.py          CLI entrypoint
   config.py       YAML configuration loading and validation
   models.py       Pydantic data models
-  reddit.py       Reddit source adapter
+  sources.py      source adapter boundary and native source registry
+  reddit.py       Reddit source client
+  ingest.py       third-party alert ingest and ingested-post scoring workflow
   scoring.py      rule filtering and scoring
   llm.py          optional LLM rerank and strategic report generation
   report.py       deterministic Markdown report builder
@@ -41,9 +43,40 @@ FastAPI is the long-term backend boundary for the product. It exposes health che
 
 `service.py` owns scan orchestration: load config, collect posts, score, optionally rerank/report with an LLM, write Markdown, and persist to SQLite. Both FastAPI and CLI call this layer so business logic does not drift between interfaces.
 
-### Collector
+### Source Adapters
 
-Fetches posts from Reddit or mock data and normalizes them into `RawPost`. It should not make business judgments.
+`sources.py` is the native collection boundary. A source adapter fetches public discussion data and normalizes it into `RawPost`. It should not make business judgments, score posts, write reports, or know about notification channels.
+
+Current native sources:
+
+- `reddit`: Reddit API client, configured per topic.
+- `hacker_news`: Hacker News Algolia search, configured per topic.
+
+Stable adapter contract:
+
+```text
+TopicConfig -> SourceAdapter.fetch(topic) -> list[RawPost]
+```
+
+Adding RSS, Product Hunt, GitHub Issues, or another compliant public source should mean adding one adapter plus config fields. It should not require changing scoring, report generation, review storage, notification, or CLI/API orchestration.
+
+### Third-Party Alert Ingest
+
+`ingest.py` is the boundary for vendor-collected alerts from tools such as F5Bot, Syften, Octolens, Zapier, or n8n. These tools are treated as outsourced collection, not as Lead Radar's moat.
+
+The stable ingest contract is:
+
+```text
+IngestedAlert -> RawPost -> SQLite posts table -> scoring/report/review workflow
+```
+
+Rules:
+
+- Vendors map into the generic `IngestedAlert` shape.
+- Each alert must identify `source` and should provide a stable `source_id`.
+- SQLite upsert is idempotent on `(source, source_id)`.
+- Vendor-specific quirks belong in thin normalization code before or at the ingest boundary, not in scoring/report modules.
+- Scoring ingested posts uses the same `score_posts`, report builder, and scan-run storage as native scans.
 
 ### Scorer
 
@@ -59,7 +92,7 @@ Builds deterministic Markdown reports from `LeadSignal` data. This remains avail
 
 ### Storage
 
-Stores scan runs, posts, signals, report paths, and notification status in SQLite.
+Stores scan runs, posts, signals, report paths, notification status, and review feedback in SQLite. Ingested alerts are stored in the same `posts` table as native source posts so downstream scoring and reports do not fork.
 
 ### Notifier
 
@@ -71,12 +104,23 @@ Sends report output to Telegram or Feishu. Telegram can send the full Markdown r
 1. Next.js or an operator calls FastAPI, or an operator runs the CLI
 2. API/CLI calls the shared service layer
 3. Service loads config.yaml and selects a topic
-4. Collector fetches RawPost items
+4. Source adapters fetch RawPost items, or mock data is loaded
 5. Scorer filters, scores, and sorts posts
 6. Optional LLM reranker reorders the candidate set
 7. Deterministic report builder or LLM report generator writes Markdown
 8. Storage writes SQLite history
 9. API returns JSON / CLI prints output / notifier optionally sends Telegram or Feishu messages
+```
+
+Third-party alert flow:
+
+```text
+1. Vendor, Zapier, n8n, or an operator POSTs alerts to /ingest/alerts
+2. API validates IngestedAlert items and upserts them into SQLite posts
+3. Operator, schedule, or automation calls /ingest/score or `lead-radar score-ingested`
+4. Ingested posts are loaded from SQLite with optional source/topic filters
+5. The normal scorer, report builder, and scan-run storage are reused
+6. Review feedback updates the same signal/review tables
 ```
 
 ## 4. Why Not Send Everything to an LLM
@@ -103,7 +147,26 @@ all posts -> rule filter -> Top N candidates -> optional LLM analysis
 - `created_at`
 - `upvotes`
 - `num_comments`
+- `topic_name`
 - `raw`
+
+`IngestedAlert` represents a vendor or webhook alert before normalization:
+
+- `source`
+- `source_id`
+- `url`
+- `title`
+- `body`
+- `author`
+- `community`
+- `created_at`
+- `topic_name`
+- `upvotes`
+- `num_comments`
+- `tags`
+- `raw`
+
+The ingest layer converts `IngestedAlert` into `RawPost`. Keep the conversion lossy only where necessary; preserve vendor payload details in `raw` when they may help debugging.
 
 `LeadSignal` represents a scored opportunity:
 
@@ -137,7 +200,29 @@ Current presets should be configuration-level variants, not separate products or
 
 ### New Sources
 
-Add a new source adapter that returns `list[RawPost]`. Candidate sources include RSS, Hacker News, Product Hunt, GitHub Issues, and compliant APIs for other public platforms.
+Add a new source adapter that returns `list[RawPost]`. Candidate sources include RSS, Product Hunt, GitHub Issues, and compliant APIs for other public platforms.
+
+Do not add source-specific scoring branches unless the source itself changes signal quality. Most source differences should be represented as `RawPost.source`, `community`, metadata in `raw`, and optional tags.
+
+### New Vendor Ingests
+
+For F5Bot, Syften, Octolens, Zapier, n8n, or another third-party alert provider, prefer this path:
+
+```text
+Vendor payload -> IngestedAlert -> /ingest/alerts -> /ingest/score or score-ingested CLI
+```
+
+Only create a dedicated vendor module when the mapping is complex enough to justify tests. The main pipeline should never know the vendor's API shape.
+
+Minimum recommended fields:
+
+- `source`: vendor or upstream source name, such as `f5bot`, `syften`, or `octolens`.
+- `source_id`: stable alert/post id for idempotency.
+- `url`: canonical evidence URL.
+- `title` and/or `body`: text to score.
+- `community`: forum, subreddit, site, or channel name if available.
+- `topic_name`: optional topic hint for later filtering.
+- `tags`: vendor/source metadata such as `vendor:f5bot`.
 
 ### New LLM Analysis
 
@@ -163,6 +248,17 @@ Local manual run:
 lead-radar run --config config.yaml --topic paid_demand_signals
 ```
 
+Score already-ingested third-party alerts:
+
+```bash
+lead-radar score-ingested \
+  --config config.yaml \
+  --topic paid_demand_signals \
+  --db-path data/lead_radar.sqlite \
+  --output-dir reports \
+  --source f5bot
+```
+
 GitHub Actions:
 
 ```text
@@ -184,7 +280,24 @@ cron/systemd timer -> CLI -> SQLite -> notification
 - Do not automate spam, harassment, bulk private outreach, account rotation, vote manipulation, or ToS circumvention.
 - Treat reports as human decision support, not automatic acquisition or growth hacking execution.
 
-## 9. Upgrade Criteria
+## 9. Stability Boundary
+
+The project is considered architecturally stable when new collection paths follow one of two routes:
+
+```text
+Native public source -> SourceAdapter -> RawPost
+Third-party alert -> IngestedAlert -> RawPost
+```
+
+Everything downstream should stay shared:
+
+```text
+RawPost -> score_posts -> LeadSignal -> Markdown report -> SQLite scan run -> review feedback
+```
+
+If a future change requires editing scoring, report generation, API contracts, CLI commands, and storage all at once just to add a source, that is a design regression. The correct fix is usually to repair the boundary, not to keep patching vendor-specific paths.
+
+## 10. Upgrade Criteria
 
 Before adding complexity, answer one question:
 

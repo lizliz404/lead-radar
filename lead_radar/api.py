@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from lead_radar.config import load_config
-from lead_radar.models import ScanResult, TopicConfig
+from lead_radar.ingest import ingest_alerts, score_ingested_posts
+from lead_radar.models import IngestedAlert, ScanResult, TopicConfig
 from lead_radar.service import run_scan
 from lead_radar.storage import SQLiteStore
 
@@ -50,6 +51,7 @@ class TopicSummary(BaseModel):
     description: str
     intent_profile: str
     report_goal: str
+    source_names: list[str]
 
 
 class ScanRequest(BaseModel):
@@ -68,6 +70,31 @@ class ScanResponse(BaseModel):
     run_id: int | None
     result: ScanResult
     markdown: str
+
+
+class IngestRequest(BaseModel):
+    alerts: list[IngestedAlert] = Field(min_length=1, max_length=500)
+    batch_name: str | None = None
+    db_path: str | None = None
+
+
+class IngestResponse(BaseModel):
+    status: str
+    batch_name: str | None
+    received: int
+    inserted: int
+    updated: int
+    source_counts: dict[str, int]
+    ingested_at: str
+
+
+class ScoreIngestedRequest(BaseModel):
+    topic: str = "paid_demand_signals"
+    config_path: str = DEFAULT_CONFIG_PATH
+    db_path: str | None = None
+    output_dir: str = DEFAULT_OUTPUT_DIR
+    sources: list[str] | None = None
+    limit: int = Field(default=200, ge=1, le=1000)
 
 
 class ReviewRequest(BaseModel):
@@ -108,6 +135,15 @@ def load_topic_config(config_path: str, topic_name: str) -> TopicConfig:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def topic_source_names(topic: TopicConfig) -> list[str]:
+    names: list[str] = []
+    if topic.sources.reddit:
+        names.append("reddit")
+    if topic.sources.hacker_news and topic.sources.hacker_news.enabled:
+        names.append("hacker_news")
+    return names
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
@@ -125,6 +161,7 @@ def list_topics(config_path: str = DEFAULT_CONFIG_PATH) -> list[TopicSummary]:
             description=topic.description,
             intent_profile=topic.intent_profile,
             report_goal=topic.report_goal,
+            source_names=topic_source_names(topic),
         )
         for topic in config.topics
     ]
@@ -147,6 +184,30 @@ def scan(request: ScanRequest) -> ScanResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ScanResponse(run_id=run_id, result=result, markdown=markdown)
+
+
+@app.post("/ingest/alerts", response_model=IngestResponse, dependencies=[Depends(require_api_token)])
+def ingest_alert_batch(request: IngestRequest) -> IngestResponse:
+    result = ingest_alerts(
+        request.alerts,
+        db_path=request.db_path or DEFAULT_DB_PATH,
+        batch_name=request.batch_name,
+    )
+    return IngestResponse.model_validate(result)
+
+
+@app.post("/ingest/score", response_model=ScanResponse, dependencies=[Depends(require_api_token)])
+def score_ingested_alerts(request: ScoreIngestedRequest) -> ScanResponse:
+    load_topic_config(request.config_path, request.topic)
+    result, markdown, run_id = score_ingested_posts(
+        config_path=request.config_path,
+        topic_name=request.topic,
+        db_path=request.db_path or DEFAULT_DB_PATH,
+        output_dir=request.output_dir,
+        sources=request.sources,
+        limit=request.limit,
+    )
     return ScanResponse(run_id=run_id, result=result, markdown=markdown)
 
 
