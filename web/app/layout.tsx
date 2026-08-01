@@ -26,6 +26,18 @@ export const metadata: Metadata = {
     "SaaS validation",
     "SaaS demand signal scanner",
   ],
+  applicationName: "Lead Radar",
+  authors: [{ name: "Liz", url: "https://lizliz.xyz" }],
+  creator: "Liz",
+  themeColor: "#FAF9F5",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   alternates: { canonical: "/" },
   openGraph: {
     title: "Lead Radar — Weekly Reddit demand evidence before you build",

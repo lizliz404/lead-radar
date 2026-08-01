@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Lead Radar">
+  <rect width="32" height="32" rx="7" fill="#FAF9F5"/>
+  <g stroke="#141413" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M8 24 V9.5 A14.5 14.5 0 0 1 22.5 24"/>
+    <path d="M8 19.2 A5.8 5.8 0 0 1 13.8 24" opacity="0.9"/>
+    <path d="M8 14.5 A10.5 10.5 0 0 1 18.5 24" opacity="0.72"/>
+    <path d="M8 12.5 H25"/>
+    <path d="M18.5 16 H22.5" opacity="0.75"/>
+    <path d="M22.5 11.5 V20.5" opacity="0.75"/>
+  </g>
+  <circle cx="8" cy="24" r="2.4" fill="#141413"/>
+  <circle cx="18.2" cy="12.2" r="2.6" fill="#C76F3A"/>
+  <circle cx="13.2" cy="18.2" r="1.15" fill="#141413" opacity="0.74"/>
+</svg>

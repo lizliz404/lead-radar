@@ -85,8 +85,10 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "Lead Radar",
+    url: "https://lead-radar.lizliz.xyz/",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
+    image: "https://lead-radar.lizliz.xyz/og-image.png",
     offers: {
       "@type": "OfferCatalog",
       name: "Lead Radar research preview",
@@ -98,7 +100,17 @@ export default function Home() {
         availability: "https://schema.org/LimitedAvailability",
       })),
     },
-    description: "A Reddit demand research workflow for source-linked, manually reviewed market signals.",
+    description:
+      "A Reddit demand research workflow for source-linked, manually reviewed market signals.",
+    author: {
+      "@type": "Person",
+      name: "Liz",
+      url: "https://lizliz.xyz",
+    },
+    isPartOf: {
+      "@type": "WebSite",
+      url: "https://lizliz.xyz",
+    },
   };
 
   const faqSchema = {
