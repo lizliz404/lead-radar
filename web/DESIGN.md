@@ -98,6 +98,19 @@ components:
     padding: 12px
 ---
 
+> **DESIGN.md quality audit** · 2026-08-02 · gold: beautiful-html-templates/soft-editorial
+> - **Genre:** hybrid（偏 A visual-system；品牌分发 brief 很薄）
+> - **Grade A (UI system):** 6.5/10 — 有 YAML tokens + `{colors.x}` 组件引用与人话 WHY，但缺 gold 完整段落骨架与 Signature Treatments
+> - **Grade B (brand brief):** 4/10 — 无 audience/OG/favicon/distribution；产品身份只在 Overview 一笔带过
+> - **Strengths:**
+>   - 机器可读 frontmatter（colors / typography roles / spacing / rounded / components）
+>   - 立场清晰：editorial research desk，非 generic AI SaaS
+>   - Colors/Do's 有使用法则与 anti-pattern
+>   - Homepage narrative order 可执行
+> - **Gaps vs gold pattern:** 无 density philosophy + Key Characteristics；无 color Defaults；typography 无 scale 表 / Signature Treatments / Principles；components 无 description 字段；缺 Layout 细粒度、canvas、Responsive、CJK、Iteration Guide、Known Gaps；无 brand/OG 分发层
+> - **Verdict:** upgrade-to-visual-system
+> - **Next action:** 按 soft-editorial 补 Overview Key Characteristics + Typography Signature Treatments（命名 2–3 个非可选 signature moves）+ 组件 description；可选拆出轻量 brand/OG 一页
+
 ## Overview
 
 Lead Radar should feel like an editorial research desk, not a generic AI SaaS dashboard.
