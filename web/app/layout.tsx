@@ -1,7 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lead-radar.lizliz.xyz";
+
+export const viewport: Viewport = {
+  themeColor: "#FAF9F5",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -10,7 +14,7 @@ export const metadata: Metadata = {
     template: "%s | Lead Radar",
   },
   description:
-    "Lead Radar is a closed research preview that scans public Reddit conversations for pain, buying intent, repeated requests, and source-linked evidence, then turns reviewed signals into a Markdown market validation report.",
+    "Reddit is full of pain and buying intent. Lead Radar ranks the evidence, forces human review, and exports a source-linked Markdown market report.",
   keywords: [
     "Reddit demand research",
     "Reddit demand research tool",
@@ -29,7 +33,6 @@ export const metadata: Metadata = {
   applicationName: "Lead Radar",
   authors: [{ name: "Liz", url: "https://lizliz.xyz" }],
   creator: "Liz",
-  themeColor: "#FAF9F5",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

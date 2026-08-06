@@ -3,7 +3,7 @@ import Link from "next/link";
 import { reports } from "./reports";
 
 export const metadata: Metadata = {
-  title: "Simulated Reddit Market Validation Report Formats",
+  title: "Simulated Demand Report Formats",
   description:
     "Read simulated Lead Radar report formats showing ranked Reddit demand signals, pain clusters, evidence slots, review status, and positioning notes.",
   alternates: { canonical: "/examples" },

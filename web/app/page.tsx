@@ -123,8 +123,24 @@ export default function Home() {
     })),
   };
 
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Lead Radar",
+    url: "https://lead-radar.lizliz.xyz/",
+    description:
+      "Reddit demand research preview: ranked pain and buying-intent evidence, human review, source-linked Markdown reports.",
+    inLanguage: "en",
+    publisher: {
+      "@type": "Person",
+      name: "Liz",
+      url: "https://lizliz.xyz",
+    },
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
@@ -351,7 +367,10 @@ This sample illustrates report shape. Real reports must include source links and
       <footer className="footer">
         <div className="container footerInner">
           <a className="brand" href="#top" aria-label="Lead Radar home"><LogoMark small /><span>Lead Radar</span></a>
-          <p>Evidence over vibes. Review over theater.</p>
+          <p>
+            Evidence over vibes. Review over theater. · Built by{" "}
+            <a href="https://lizliz.xyz">Liz</a> · Reddit demand research preview
+          </p>
         </div>
       </footer>
     </>
