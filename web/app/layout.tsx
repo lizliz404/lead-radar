@@ -86,6 +86,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap"
           rel="stylesheet"
         />
+        {/* GA4: shared property with lizliz.xyz (G-TXVLTJJ878); filter by hostname in GA */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-TXVLTJJ878" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-TXVLTJJ878');`,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
