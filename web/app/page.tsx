@@ -109,7 +109,8 @@ export default function Home() {
     },
     isPartOf: {
       "@type": "WebSite",
-      url: "https://lizliz.xyz",
+      name: "Lead Radar",
+      url: "https://lead-radar.lizliz.xyz/",
     },
   };
 
@@ -182,7 +183,13 @@ export default function Home() {
             </div>
 
             <aside className="heroArtwork" aria-label="Lead Radar signal map illustration">
-              <img src="/brand-signal-map-hero.png" alt="Lead Radar transforms scattered market signals into a structured evidence report" />
+              <img
+                src="/brand-signal-map-hero.png"
+                alt="Lead Radar transforms scattered market signals into a structured evidence report"
+                width={1400}
+                height={566}
+                fetchPriority="high"
+              />
             </aside>
           </div>
         </section>

@@ -3,7 +3,8 @@ import { PreviewClient } from "./preview-client";
 
 export const metadata: Metadata = {
   title: "Instant Preview",
-  description: "Try the Lead Radar brief-to-evidence workflow without waiting for the Streamlit operator console.",
+  description:
+    "Paste a market brief, see ranked Reddit-style demand signals and review status, and test the evidence workflow before you pay for a full scan.",
   alternates: { canonical: "/preview" },
 };
 

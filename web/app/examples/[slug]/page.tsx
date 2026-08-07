@@ -17,8 +17,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!report) return {};
 
   return {
-    title: `${report.title} Simulated Report Format`,
-    description: report.summary,
+    title: { absolute: `${report.title} — sample · Lead Radar` },
+    description: `Simulated Lead Radar report for ${report.title}: ranked Reddit demand signals, pain clusters, evidence slots, and review-status format.`,
     alternates: { canonical: `/examples/${report.slug}` },
   };
 }

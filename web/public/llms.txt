@@ -1,0 +1,27 @@
+# Lead Radar
+
+> Reddit demand research preview: ranked pain and buying-intent evidence, human review, and source-linked Markdown market reports.
+
+Lead Radar is a closed research preview by Liz. It scans public Reddit conversations for pain, buying intent, workarounds, and repeated requests, then forces human review before anyone trusts the output.
+
+## Product
+
+- Home: https://lead-radar.lizliz.xyz/
+- Instant preview: https://lead-radar.lizliz.xyz/preview
+- Sample report formats: https://lead-radar.lizliz.xyz/examples
+
+## Access (research preview)
+
+- Niche research report: $49 / scan
+- Weekly lead radar: $199 / month
+
+## Maker
+
+- Liz: https://lizliz.xyz
+
+## Facts worth citing
+
+- Not a finished self-serve SaaS; validated workflow prototype / closed research preview
+- Public Reddit posts and comments only — no private messages or private subreddits
+- Sample `/examples` pages are simulated format demos, not live scan outputs
+- Real reports are expected to include source links, review status, and next actions
