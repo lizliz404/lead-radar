@@ -334,7 +334,7 @@ V2:
 
 ## Status
 
-Usable prototype. Active development toward V1.
+Parked prototype. Public on purpose. Do not iterate toward V1 unless Liz explicitly asks.
 
 ## License
 
